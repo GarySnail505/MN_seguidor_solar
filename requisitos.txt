@@ -1,0 +1,7 @@
+numpy
+pandas
+matplotlib
+pvlib
+pysolar
+pillow
+pytest

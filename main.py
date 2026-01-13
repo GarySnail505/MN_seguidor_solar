@@ -2,6 +2,7 @@ import argparse
 from src.simulacion import simular_y_guardar
 from src.graficas import generar_graficas
 from src.animacion_3d import crear_animacion_3d
+from src.gui import launch_gui
 
 def main():
     parser = argparse.ArgumentParser(
@@ -27,7 +28,13 @@ def main():
     parser.add_argument("--mp4", action="store_true", help="Generar animación MP4 3D (requiere ffmpeg)")
     parser.add_argument("--fps", type=int, default=25, help="FPS del video/gif")
 
+    parser.add_argument("--gui", action="store_true", help="Abrir interfaz gráfica (GUI)")
+
     args = parser.parse_args()
+
+    if args.gui:
+        launch_gui()
+        return
 
     ruta_csv = simular_y_guardar(
         inicio_iso=args.inicio,

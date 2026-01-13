@@ -26,6 +26,9 @@ Instalación:
 Ejecución (Quito por defecto):
   python main.py --inicio 2026-01-09T06:00 --horas 12 --paso 60 --backend pvlib --gif --mp4
 
+GUI (Quito por defecto):
+  python -m src.gui
+
 Pruebas:
   pytest -q
 

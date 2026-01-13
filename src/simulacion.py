@@ -12,22 +12,35 @@ from src.cinematica import (
 from src.metodos.newton_sistema import resolver_newton_sistema
 from src.metodos.levenberg_marquardt import resolver_levenberg_marquardt
 
-def simular_y_guardar(
+
+def _normalizar_timestamp(valor, zona_horaria: str) -> pd.Timestamp:
+    timestamp = pd.Timestamp(valor)
+    if timestamp.tzinfo is None:
+        return timestamp.tz_localize(zona_horaria)
+    return timestamp.tz_convert(zona_horaria)
+
+
+def simular_df(
     inicio_iso: str,
-    horas: float,
+    fin_iso: str,
     paso_seg: int,
     lat: float,
     lon: float,
     alt_m: float,
     zona_horaria: str,
-    backend: str,
-    carpeta_salida: str
-) -> str:
-    os.makedirs(carpeta_salida, exist_ok=True)
+    backend: str
+) -> pd.DataFrame:
+    t0 = _normalizar_timestamp(inicio_iso, zona_horaria)
+    t1 = _normalizar_timestamp(fin_iso, zona_horaria)
 
-    t0 = pd.Timestamp(inicio_iso).tz_localize(zona_horaria)
-    n_pasos = int((horas * 3600) // paso_seg) + 1
-    tiempos = [t0 + pd.Timedelta(seconds=i * paso_seg) for i in range(n_pasos)]
+    if t1 < t0:
+        raise ValueError("La fecha de fin debe ser posterior al inicio.")
+
+    tiempos = []
+    t_actual = t0
+    while t_actual <= t1:
+        tiempos.append(t_actual)
+        t_actual += pd.Timedelta(seconds=paso_seg)
 
     filas = []
     phi_prev, beta_prev = None, None
@@ -90,7 +103,36 @@ def simular_y_guardar(
             "lambda_lm": info_lm.get("lambda_final", None),
         })
 
-    df = pd.DataFrame(filas)
+    return pd.DataFrame(filas)
+
+
+def simular_y_guardar(
+    inicio_iso: str,
+    horas: float,
+    paso_seg: int,
+    lat: float,
+    lon: float,
+    alt_m: float,
+    zona_horaria: str,
+    backend: str,
+    carpeta_salida: str
+) -> str:
+    os.makedirs(carpeta_salida, exist_ok=True)
+
+    t0 = _normalizar_timestamp(inicio_iso, zona_horaria)
+    t1 = t0 + pd.Timedelta(hours=horas)
+
+    df = simular_df(
+        inicio_iso=t0.isoformat(),
+        fin_iso=t1.isoformat(),
+        paso_seg=paso_seg,
+        lat=lat,
+        lon=lon,
+        alt_m=alt_m,
+        zona_horaria=zona_horaria,
+        backend=backend
+    )
+
     ruta_csv = os.path.join(carpeta_salida, "simulacion.csv")
     df.to_csv(ruta_csv, index=False)
     return ruta_csv

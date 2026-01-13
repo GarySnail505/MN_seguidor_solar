@@ -48,16 +48,12 @@ class SolarTrackerGUI:
         frame = ttk.Frame(self.root, padding=12)
         frame.pack(side=tk.TOP, fill=tk.X)
 
-        location_label = ttk.Label(
-            frame,
-            text="Ubicación fija: Quito (EPN) - Lat -0.1807, Lon -78.4678, Alt 2850m",
-        )
-        location_label.grid(row=0, column=0, columnspan=6, sticky="w", pady=(0, 8))
+        frame.columnconfigure(0, weight=2)
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(2, weight=1)
 
-        ttk.Label(frame, text="Fecha inicio (YYYY-MM-DD)").grid(row=1, column=0, sticky="w")
-        ttk.Label(frame, text="Hora inicio (HH:MM)").grid(row=1, column=1, sticky="w")
-        ttk.Label(frame, text="Fecha fin (YYYY-MM-DD)").grid(row=1, column=2, sticky="w")
-        ttk.Label(frame, text="Hora fin (HH:MM)").grid(row=1, column=3, sticky="w")
+        range_frame = ttk.LabelFrame(frame, text="Rango de simulación", padding=8)
+        range_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
 
         today = datetime.now()
         self.start_date = tk.StringVar(value=today.strftime("%Y-%m-%d"))
@@ -66,21 +62,44 @@ class SolarTrackerGUI:
         self.end_time = tk.StringVar(value="18:00")
         self.full_day = tk.BooleanVar(value=False)
 
-        ttk.Entry(frame, textvariable=self.start_date, width=12).grid(row=2, column=0, padx=4)
-        ttk.Entry(frame, textvariable=self.start_time, width=8).grid(row=2, column=1, padx=4)
-        ttk.Entry(frame, textvariable=self.end_date, width=12).grid(row=2, column=2, padx=4)
-        ttk.Entry(frame, textvariable=self.end_time, width=8).grid(row=2, column=3, padx=4)
-
-        ttk.Checkbutton(frame, text="Simular día completo", variable=self.full_day).grid(
-            row=2, column=4, padx=4
+        ttk.Label(range_frame, text="Inicio (YYYY-MM-DD)").grid(row=0, column=0, sticky="w")
+        ttk.Label(range_frame, text="HH:MM").grid(row=0, column=1, sticky="w", padx=(4, 0))
+        ttk.Label(range_frame, text="Fin (opcional)").grid(row=1, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(range_frame, text="HH:MM").grid(
+            row=1, column=1, sticky="w", padx=(4, 0), pady=(6, 0)
         )
 
-        ttk.Label(frame, text="Paso (seg)").grid(row=1, column=5, sticky="w")
+        ttk.Entry(range_frame, textvariable=self.start_date, width=12).grid(row=0, column=0)
+        ttk.Entry(range_frame, textvariable=self.start_time, width=8).grid(
+            row=0, column=1, padx=(4, 0)
+        )
+        ttk.Entry(range_frame, textvariable=self.end_date, width=12).grid(
+            row=1, column=0, pady=(6, 0)
+        )
+        ttk.Entry(range_frame, textvariable=self.end_time, width=8).grid(
+            row=1, column=1, padx=(4, 0), pady=(6, 0)
+        )
+
+        ttk.Label(range_frame, text="Paso (s)").grid(row=0, column=2, sticky="w", padx=(12, 0))
         self.step_seconds = tk.IntVar(value=300)
-        ttk.Entry(frame, textvariable=self.step_seconds, width=6).grid(row=2, column=5, padx=4)
+        ttk.Entry(range_frame, textvariable=self.step_seconds, width=6).grid(
+            row=0, column=3, padx=(4, 0)
+        )
+
+        ttk.Label(range_frame, text="FPS (time-lapse)").grid(
+            row=1, column=2, sticky="w", padx=(12, 0), pady=(6, 0)
+        )
+        self.fps = tk.IntVar(value=20)
+        ttk.Entry(range_frame, textvariable=self.fps, width=6).grid(
+            row=1, column=3, padx=(4, 0), pady=(6, 0)
+        )
+
+        ttk.Checkbutton(range_frame, text="Simular día completo", variable=self.full_day).grid(
+            row=2, column=0, columnspan=2, sticky="w", pady=(8, 0)
+        )
 
         buttons_frame = ttk.Frame(frame)
-        buttons_frame.grid(row=3, column=0, columnspan=6, pady=(10, 0), sticky="w")
+        buttons_frame.grid(row=0, column=1, sticky="n", pady=(10, 0))
 
         self.btn_newton = ttk.Button(
             buttons_frame,
@@ -103,23 +122,26 @@ class SolarTrackerGUI:
         )
         self.btn_stop.pack(side=tk.LEFT, padx=6)
 
+        location_frame = ttk.LabelFrame(frame, text="Ubicación (Quito, EPN)", padding=8)
+        location_frame.grid(row=0, column=2, sticky="nsew")
+        ttk.Label(location_frame, text="Lat: -0.1807").grid(row=0, column=0, sticky="w")
+        ttk.Label(location_frame, text="Lon: -78.4678").grid(row=1, column=0, sticky="w")
+        ttk.Label(location_frame, text="Alt: 2850.0 m").grid(row=2, column=0, sticky="w")
+        ttk.Label(location_frame, text="TZ: America/Guayaquil").grid(row=3, column=0, sticky="w")
+
         self.status = tk.StringVar(value="Listo para simular.")
-        ttk.Label(frame, textvariable=self.status).grid(row=4, column=0, columnspan=6, sticky="w")
+        ttk.Label(frame, textvariable=self.status).grid(
+            row=1, column=0, columnspan=3, sticky="w", pady=(6, 0)
+        )
 
     def _setup_figures(self) -> None:
-        self.figure = Figure(figsize=(13, 4), dpi=100)
-        gs = self.figure.add_gridspec(1, 3, wspace=0.35)
+        self.figure = Figure(figsize=(13, 4.8), dpi=100)
+        gs = self.figure.add_gridspec(1, 2, wspace=0.3)
 
-        self.ax_sun = self.figure.add_subplot(gs[0, 0], projection="polar")
-        self.ax_panel = self.figure.add_subplot(gs[0, 1], projection="3d")
-        self.ax_plot = self.figure.add_subplot(gs[0, 2])
+        self.ax_panel = self.figure.add_subplot(gs[0, 0], projection="3d")
+        self.ax_plot = self.figure.add_subplot(gs[0, 1])
 
-        self.ax_sun.set_title("Posición del sol")
-        self.ax_sun.set_theta_zero_location("N")
-        self.ax_sun.set_theta_direction(-1)
-        self.ax_sun.set_rlim(0, 90)
-
-        self.ax_panel.set_title("Movimiento del panel")
+        self.ax_panel.set_title("Movimiento del panel y posición del sol")
         self.ax_panel.set_xlim(-1.5, 1.5)
         self.ax_panel.set_ylim(-1.5, 1.5)
         self.ax_panel.set_zlim(-1.5, 1.5)
@@ -132,17 +154,23 @@ class SolarTrackerGUI:
         self.ax_plot.set_ylabel("Ángulo (deg)")
         self.ax_plot.grid(True)
 
-        self.sun_point, = self.ax_sun.plot([], [], "o", color="#F5A623")
         self.panel_poly = Poly3DCollection([], alpha=0.6)
         self.ax_panel.add_collection3d(self.panel_poly)
-        self.sun_vec_line, = self.ax_panel.plot([], [], [], color="#F5A623", linewidth=2)
-        self.normal_vec_line, = self.ax_panel.plot([], [], [], color="#4A90E2", linewidth=2)
+        self.sun_vec_line, = self.ax_panel.plot(
+            [], [], [], color="#F5A623", linewidth=2, label="Vector del sol"
+        )
+        self.normal_vec_line, = self.ax_panel.plot(
+            [], [], [], color="#4A90E2", linewidth=2, label="Normal del panel"
+        )
+        self.sun_sphere = self.ax_panel.scatter([], [], [], s=80, color="#F5A623", label="Sol")
         self.time_text = self.ax_panel.text2D(0.05, 0.92, "", transform=self.ax_panel.transAxes)
 
         self.roll_line, = self.ax_plot.plot([], [], label="roll (panel)")
         self.pitch_line, = self.ax_plot.plot([], [], label="pitch (panel)")
         self.elev_line, = self.ax_plot.plot([], [], label="elevación (sol)")
         self.ax_plot.legend(loc="upper right")
+
+        self.ax_panel.legend(loc="upper left")
 
         canvas = FigureCanvasTkAgg(self.figure, master=self.root)
         canvas.draw()
@@ -161,6 +189,21 @@ class SolarTrackerGUI:
                 self.animation = None
                 self.status.set("Animación detenida.")
 
+        self._reset_artists()
+
+    def _reset_artists(self) -> None:
+        self.sun_vec_line.set_data([], [])
+        self.sun_vec_line.set_3d_properties([])
+        self.normal_vec_line.set_data([], [])
+        self.normal_vec_line.set_3d_properties([])
+        self.panel_poly.set_verts([])
+        self.roll_line.set_data([], [])
+        self.pitch_line.set_data([], [])
+        self.elev_line.set_data([], [])
+        self.sun_sphere._offsets3d = ([], [], [])
+        self.time_text.set_text("")
+        self.canvas.draw_idle()
+
     def _parse_datetime(self, date_str: str, time_str: str) -> str:
         dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
         return dt.isoformat()
@@ -175,8 +218,12 @@ class SolarTrackerGUI:
         end_date = self.end_date.get().strip()
         end_time = self.end_time.get().strip()
 
-        if not all([start_date, start_time, end_date, end_time]):
-            raise ValueError("Complete fecha y hora de inicio y fin.")
+        if not start_date or not start_time:
+            raise ValueError("Complete fecha y hora de inicio.")
+
+        if not end_date or not end_time:
+            end_date = start_date
+            end_time = "23:59"
 
         return (
             self._parse_datetime(start_date, start_time),
@@ -193,6 +240,11 @@ class SolarTrackerGUI:
         step = self.step_seconds.get()
         if step <= 0:
             messagebox.showerror("Datos inválidos", "El paso debe ser un entero positivo.")
+            return
+
+        fps = self.fps.get()
+        if fps <= 0:
+            messagebox.showerror("Datos inválidos", "El FPS debe ser un entero positivo.")
             return
 
         self._toggle_buttons(False)
@@ -228,6 +280,7 @@ class SolarTrackerGUI:
     def _start_animation(self, df, method: str) -> None:
         self.df = df.reset_index(drop=True)
         self._stop_animation()
+        self._reset_artists()
 
         az = np.radians(self.df["azimut_deg"].to_numpy())
         el = np.radians(self.df["elevacion_deg"].to_numpy())
@@ -253,10 +306,6 @@ class SolarTrackerGUI:
         self.ax_plot.set_ylim(min_angle - pad, max_angle + pad)
 
         def update(i: int):
-            theta = az[i]
-            r = 90 - elev_deg[i]
-            self.sun_point.set_data([theta], [r])
-
             s_vec = vector_incidencia_desde_az_el(az[i], el[i])
             verts = _panel_vertices(phi[i], beta[i])
             self.panel_poly.set_verts([verts])
@@ -264,6 +313,11 @@ class SolarTrackerGUI:
             scale = 1.2
             self.sun_vec_line.set_data([0, scale * s_vec[0]], [0, scale * s_vec[1]])
             self.sun_vec_line.set_3d_properties([0, scale * s_vec[2]])
+            self.sun_sphere._offsets3d = (
+                [scale * s_vec[0]],
+                [scale * s_vec[1]],
+                [scale * s_vec[2]],
+            )
 
             n_vec = normal_panel(phi[i], beta[i])
             self.normal_vec_line.set_data([0, scale * n_vec[0]], [0, scale * n_vec[1]])
@@ -278,10 +332,10 @@ class SolarTrackerGUI:
             self.time_text.set_text(f"{method_label}\n{tiempo}")
 
             return (
-                self.sun_point,
                 self.panel_poly,
                 self.sun_vec_line,
                 self.normal_vec_line,
+                self.sun_sphere,
                 self.roll_line,
                 self.pitch_line,
                 self.elev_line,
@@ -293,7 +347,7 @@ class SolarTrackerGUI:
                 self.figure,
                 update,
                 frames=len(self.df),
-                interval=150,
+                interval=max(1, int(1000 / self.fps.get())),
                 blit=False,
                 repeat=False,
             )

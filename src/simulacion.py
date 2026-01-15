@@ -90,6 +90,14 @@ def simular_dataframe(
         # Newton (sistema)
         phi_n, beta_n, info_n = resolver_newton_sistema(s, phi0, beta0)
         n_n = normal_panel(phi_n, beta_n)
+
+        # Corrección física: la normal del panel debe apuntar hacia el sol.
+        # (Evita soluciones "invertidas" que son válidas en ecuaciones parciales,
+        # pero no tienen sentido para captación de energía.)
+        if float(np.dot(n_n, s)) < 0.0:
+            phi_n += np.pi
+            n_n = normal_panel(phi_n, beta_n)
+
         err_n = angulo_incidencia_grados(n_n, s)
 
         # LM (mínimos cuadrados)

@@ -185,7 +185,16 @@ class SolarTrackerGUI:
     def _stop_animation(self) -> None:
         with self._animation_lock:
             if self.animation is not None:
-                self.animation.event_source.stop()
+                # En algunos casos (por ejemplo, cuando la animación ya terminó),
+                # event_source puede ser None. Se protege el stop() para evitar
+                # errores al volver a ejecutar.
+                event_source = getattr(self.animation, "event_source", None)
+                if event_source is not None:
+                    try:
+                        event_source.stop()
+                    except Exception:
+                        pass
+
                 self.animation = None
                 self.status.set("Animación detenida.")
 
@@ -267,7 +276,7 @@ class SolarTrackerGUI:
                 lon=LON_Quito,
                 alt_m=ALT_Quito,
                 zona_horaria=ZONA_Quito,
-                backend="pvlib",
+                backend="pysolar",
             )
         except Exception as exc:
             self.root.after(0, lambda: messagebox.showerror("Error", str(exc)))

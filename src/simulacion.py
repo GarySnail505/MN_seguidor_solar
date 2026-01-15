@@ -1,4 +1,6 @@
 import os
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -12,6 +14,7 @@ from src.cinematica import (
 from src.metodos.newton_sistema import resolver_newton_sistema
 from src.metodos.levenberg_marquardt import resolver_levenberg_marquardt
 
+<<<<<<< HEAD
 
 def _normalizar_timestamp(valor, zona_horaria: str) -> pd.Timestamp:
     timestamp = pd.Timestamp(valor)
@@ -23,11 +26,46 @@ def _normalizar_timestamp(valor, zona_horaria: str) -> pd.Timestamp:
 def simular_df(
     inicio_iso: str,
     fin_iso: str,
+=======
+def _normalizar_fecha(fecha_iso: str, zona_horaria: str) -> pd.Timestamp:
+    t = pd.Timestamp(fecha_iso)
+    if t.tzinfo is None:
+        return t.tz_localize(zona_horaria)
+    return t.tz_convert(zona_horaria)
+
+
+def _generar_tiempos(
+    inicio_iso: str,
+    paso_seg: int,
+    zona_horaria: str,
+    horas: Optional[float] = None,
+    fin_iso: Optional[str] = None
+) -> list[pd.Timestamp]:
+    t0 = _normalizar_fecha(inicio_iso, zona_horaria)
+
+    if fin_iso is not None:
+        t1 = _normalizar_fecha(fin_iso, zona_horaria)
+        if t1 < t0:
+            raise ValueError("La fecha final no puede ser anterior a la inicial.")
+        segundos = (t1 - t0).total_seconds()
+    else:
+        if horas is None:
+            raise ValueError("Debe especificar 'horas' o 'fin_iso'.")
+        segundos = horas * 3600
+
+    n_pasos = int(segundos // paso_seg) + 1
+    return [t0 + pd.Timedelta(seconds=i * paso_seg) for i in range(n_pasos)]
+
+
+def simular_dataframe(
+    inicio_iso: str,
+>>>>>>> rama_gui
     paso_seg: int,
     lat: float,
     lon: float,
     alt_m: float,
     zona_horaria: str,
+<<<<<<< HEAD
     backend: str
 ) -> pd.DataFrame:
     t0 = _normalizar_timestamp(inicio_iso, zona_horaria)
@@ -41,6 +79,19 @@ def simular_df(
     while t_actual <= t1:
         tiempos.append(t_actual)
         t_actual += pd.Timedelta(seconds=paso_seg)
+=======
+    backend: str,
+    horas: Optional[float] = None,
+    fin_iso: Optional[str] = None
+) -> pd.DataFrame:
+    tiempos = _generar_tiempos(
+        inicio_iso=inicio_iso,
+        paso_seg=paso_seg,
+        zona_horaria=zona_horaria,
+        horas=horas,
+        fin_iso=fin_iso
+    )
+>>>>>>> rama_gui
 
     filas = []
     phi_prev, beta_prev = None, None
@@ -69,6 +120,14 @@ def simular_df(
         # Newton (sistema)
         phi_n, beta_n, info_n = resolver_newton_sistema(s, phi0, beta0)
         n_n = normal_panel(phi_n, beta_n)
+
+        # Corrección física: la normal del panel debe apuntar hacia el sol.
+        # (Evita soluciones "invertidas" que son válidas en ecuaciones parciales,
+        # pero no tienen sentido para captación de energía.)
+        if float(np.dot(n_n, s)) < 0.0:
+            phi_n += np.pi
+            n_n = normal_panel(phi_n, beta_n)
+
         err_n = angulo_incidencia_grados(n_n, s)
 
         # LM (mínimos cuadrados)
@@ -119,18 +178,28 @@ def simular_y_guardar(
 ) -> str:
     os.makedirs(carpeta_salida, exist_ok=True)
 
+<<<<<<< HEAD
     t0 = _normalizar_timestamp(inicio_iso, zona_horaria)
     t1 = t0 + pd.Timedelta(hours=horas)
 
     df = simular_df(
         inicio_iso=t0.isoformat(),
         fin_iso=t1.isoformat(),
+=======
+    df = simular_dataframe(
+        inicio_iso=inicio_iso,
+>>>>>>> rama_gui
         paso_seg=paso_seg,
         lat=lat,
         lon=lon,
         alt_m=alt_m,
         zona_horaria=zona_horaria,
+<<<<<<< HEAD
         backend=backend
+=======
+        backend=backend,
+        horas=horas
+>>>>>>> rama_gui
     )
 
     ruta_csv = os.path.join(carpeta_salida, "simulacion.csv")

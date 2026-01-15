@@ -2,14 +2,15 @@ import numpy as np
 
 def vector_incidencia_desde_az_el(azimut_rad: float, elevacion_rad: float) -> np.ndarray:
     """
-    Vector unitario de incidencia solar (Sol -> panel) en ENU.
+    Vector unitario HACIA el sol (panel -> sol) en ENU.
 
     ENU:
       x = Este, y = Norte, z = Arriba
 
-    u = hacia el Sol (observador -> Sol):
-      [cos(el)*sin(az), cos(el)*cos(az), sin(el)]
-    s = incidencia (Sol -> panel) = -u
+    Este vector se usa para comparar con la normal del panel n (que por
+    convención apunta hacia arriba, es decir, hacia el cielo).
+
+    Para una elevación positiva, el componente z será positivo.
     """
     c = np.cos(elevacion_rad)
     s_el = np.sin(elevacion_rad)
@@ -17,7 +18,7 @@ def vector_incidencia_desde_az_el(azimut_rad: float, elevacion_rad: float) -> np
     c_az = np.cos(azimut_rad)
 
     u = np.array([c * s_az, c * c_az, s_el], dtype=float)
-    return -u
+    return u
 
 def rotacion_x(beta: float) -> np.ndarray:
     """Rotación alrededor del eje x (Este)."""

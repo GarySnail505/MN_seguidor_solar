@@ -20,8 +20,8 @@ def main():
     parser.add_argument("--zona_horaria", type=str, default="America/Guayaquil",
                         help="Zona horaria IANA (Ecuador: America/Guayaquil)")
 
-    parser.add_argument("--backend", type=str, choices=["pvlib", "pysolar"], default="pvlib",
-                        help="Librería para posición solar")
+    parser.add_argument("--backend", type=str, choices=["pysolar"], default="pysolar",
+                        help="Librería para posición solar (se usa pysolar)")
     parser.add_argument("--salida", type=str, default="salidas", help="Carpeta de salida")
 
     parser.add_argument("--gif", action="store_true", help="Generar animación GIF 3D")

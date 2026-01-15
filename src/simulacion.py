@@ -14,19 +14,6 @@ from src.cinematica import (
 from src.metodos.newton_sistema import resolver_newton_sistema
 from src.metodos.levenberg_marquardt import resolver_levenberg_marquardt
 
-<<<<<<< HEAD
-
-def _normalizar_timestamp(valor, zona_horaria: str) -> pd.Timestamp:
-    timestamp = pd.Timestamp(valor)
-    if timestamp.tzinfo is None:
-        return timestamp.tz_localize(zona_horaria)
-    return timestamp.tz_convert(zona_horaria)
-
-
-def simular_df(
-    inicio_iso: str,
-    fin_iso: str,
-=======
 def _normalizar_fecha(fecha_iso: str, zona_horaria: str) -> pd.Timestamp:
     t = pd.Timestamp(fecha_iso)
     if t.tzinfo is None:
@@ -59,27 +46,11 @@ def _generar_tiempos(
 
 def simular_dataframe(
     inicio_iso: str,
->>>>>>> rama_gui
     paso_seg: int,
     lat: float,
     lon: float,
     alt_m: float,
     zona_horaria: str,
-<<<<<<< HEAD
-    backend: str
-) -> pd.DataFrame:
-    t0 = _normalizar_timestamp(inicio_iso, zona_horaria)
-    t1 = _normalizar_timestamp(fin_iso, zona_horaria)
-
-    if t1 < t0:
-        raise ValueError("La fecha de fin debe ser posterior al inicio.")
-
-    tiempos = []
-    t_actual = t0
-    while t_actual <= t1:
-        tiempos.append(t_actual)
-        t_actual += pd.Timedelta(seconds=paso_seg)
-=======
     backend: str,
     horas: Optional[float] = None,
     fin_iso: Optional[str] = None
@@ -91,7 +62,6 @@ def simular_dataframe(
         horas=horas,
         fin_iso=fin_iso
     )
->>>>>>> rama_gui
 
     filas = []
     phi_prev, beta_prev = None, None
@@ -178,28 +148,15 @@ def simular_y_guardar(
 ) -> str:
     os.makedirs(carpeta_salida, exist_ok=True)
 
-<<<<<<< HEAD
-    t0 = _normalizar_timestamp(inicio_iso, zona_horaria)
-    t1 = t0 + pd.Timedelta(hours=horas)
-
-    df = simular_df(
-        inicio_iso=t0.isoformat(),
-        fin_iso=t1.isoformat(),
-=======
     df = simular_dataframe(
         inicio_iso=inicio_iso,
->>>>>>> rama_gui
         paso_seg=paso_seg,
         lat=lat,
         lon=lon,
         alt_m=alt_m,
         zona_horaria=zona_horaria,
-<<<<<<< HEAD
-        backend=backend
-=======
         backend=backend,
         horas=horas
->>>>>>> rama_gui
     )
 
     ruta_csv = os.path.join(carpeta_salida, "simulacion.csv")

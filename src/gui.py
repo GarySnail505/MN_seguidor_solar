@@ -170,7 +170,7 @@ class SolarTrackerGUI:
         self.elev_line, = self.ax_plot.plot([], [], label="elevación (sol)")
         self.ax_plot.legend(loc="upper right")
 
-        self.ax_panel.legend(loc="upper left")
+        self.ax_panel.legend(loc="upper right")
 
         canvas = FigureCanvasTkAgg(self.figure, master=self.root)
         canvas.draw()

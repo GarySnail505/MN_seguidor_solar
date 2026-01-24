@@ -11,13 +11,15 @@ def vector_incidencia_desde_az_el(azimut_rad: float, elevacion_rad: float) -> np
     convención apunta hacia arriba, es decir, hacia el cielo).
 
     Para una elevación positiva, el componente z será positivo.
-    """
-    c = np.cos(elevacion_rad)
-    s_el = np.sin(elevacion_rad)
-    s_az = np.sin(azimut_rad)
-    c_az = np.cos(azimut_rad)
 
-    u = np.array([c * s_az, c * c_az, s_el], dtype=float)
+    Retorna las componentes x, y, z para el vector solar.
+    """
+    cos_el = np.cos(elevacion_rad)
+    sen_el = np.sin(elevacion_rad)
+    sen_az = np.sin(azimut_rad)
+    cos_az = np.cos(azimut_rad)
+
+    u = np.array([cos_el * sen_az, cos_el * cos_az, sen_el], dtype=float) 
     return u
 
 def rotacion_x(beta: float) -> np.ndarray:
@@ -69,4 +71,6 @@ def solucion_cerrada_semilla(s: np.ndarray) -> tuple[float, float]:
     sx, sy, sz = float(s[0]), float(s[1]), float(s[2])
     beta0 = -np.arcsin(np.clip(sy, -1.0, 1.0))
     phi0 = np.arctan2(sx, sz)
+    # beta0 = np.arctan2(-sy, sz) 
+    # phi0 = np.arctan2(sx, np.sqrt(sz * sz + sy * sy))
     return phi0, beta0

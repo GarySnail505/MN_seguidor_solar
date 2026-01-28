@@ -12,10 +12,43 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from src.cinematica import normal_panel, rotacion_x, rotacion_y, vector_incidencia_desde_az_el
 from src.simulacion import simular_dataframe
 
-LAT_Quito = -0.1807
-LON_Quito = -78.4678
-ALT_Quito = 2850.0
-ZONA_Quito = "America/Guayaquil"
+LOCATIONS = {
+    "Macapá — Newton (cenit/equinoccios)": {
+        "lat": 0.035,
+        "lon": -51.07,
+        "alt_m": 0.0,
+        "tz": "America/Belem",
+        "divergence": "Newton diverge (cenit en equinoccios, ~12:00).",
+    },
+    "Kisangani — Newton (paso ≥ 60 s)": {
+        "lat": 0.52,
+        "lon": 25.2,
+        "alt_m": 0.0,
+        "tz": "Africa/Lubumbashi",
+        "divergence": "Newton diverge (paso temporal finito cerca del cenit).",
+    },
+    "Longyearbyen — LM (sol de medianoche)": {
+        "lat": 78.22,
+        "lon": 15.65,
+        "alt_m": 0.0,
+        "tz": "Arctic/Longyearbyen",
+        "divergence": "LM diverge (rotación infinita del azimut).",
+    },
+    "Amundsen–Scott — LM (Polo Sur)": {
+        "lat": -90.0,
+        "lon": 0.0,
+        "alt_m": 2835.0,
+        "tz": "Antarctica/South_Pole",
+        "divergence": "LM diverge (Hessiano singular, círculo perfecto).",
+    },
+    "Tromsø — LM (día perpetuo)": {
+        "lat": 69.65,
+        "lon": 18.96,
+        "alt_m": 0.0,
+        "tz": "Europe/Oslo",
+        "divergence": "LM diverge (valle plano con soluciones equivalentes).",
+    },
+}
 
 
 def _panel_vertices(phi: float, beta: float, ancho: float = 1.2, alto: float = 0.7) -> np.ndarray:
@@ -122,12 +155,34 @@ class SolarTrackerGUI:
         )
         self.btn_stop.pack(side=tk.LEFT, padx=6)
 
-        location_frame = ttk.LabelFrame(frame, text="Ubicación (Quito, EPN)", padding=8)
+        location_frame = ttk.LabelFrame(frame, text="Ubicación", padding=8)
         location_frame.grid(row=0, column=2, sticky="nsew")
-        ttk.Label(location_frame, text="Lat: -0.1807").grid(row=0, column=0, sticky="w")
-        ttk.Label(location_frame, text="Lon: -78.4678").grid(row=1, column=0, sticky="w")
-        ttk.Label(location_frame, text="Alt: 2850.0 m").grid(row=2, column=0, sticky="w")
-        ttk.Label(location_frame, text="TZ: America/Guayaquil").grid(row=3, column=0, sticky="w")
+        self.location_var = tk.StringVar(value=next(iter(LOCATIONS.keys())))
+        self.location_combo = ttk.Combobox(
+            location_frame,
+            textvariable=self.location_var,
+            values=list(LOCATIONS.keys()),
+            state="readonly",
+            width=36,
+        )
+        self.location_combo.grid(row=0, column=0, sticky="w")
+        self.location_combo.bind("<<ComboboxSelected>>", self._on_location_change)
+
+        self.location_lat = tk.StringVar()
+        self.location_lon = tk.StringVar()
+        self.location_alt = tk.StringVar()
+        self.location_tz = tk.StringVar()
+        self.location_divergence = tk.StringVar()
+
+        ttk.Label(location_frame, textvariable=self.location_lat).grid(row=1, column=0, sticky="w")
+        ttk.Label(location_frame, textvariable=self.location_lon).grid(row=2, column=0, sticky="w")
+        ttk.Label(location_frame, textvariable=self.location_alt).grid(row=3, column=0, sticky="w")
+        ttk.Label(location_frame, textvariable=self.location_tz).grid(row=4, column=0, sticky="w")
+        ttk.Label(location_frame, textvariable=self.location_divergence, wraplength=260).grid(
+            row=5, column=0, sticky="w", pady=(6, 0)
+        )
+
+        self._set_location_display(self.location_var.get())
 
         self.status = tk.StringVar(value="Listo para simular.")
         ttk.Label(frame, textvariable=self.status).grid(
@@ -266,16 +321,28 @@ class SolarTrackerGUI:
         )
         thread.start()
 
+    def _on_location_change(self, _event: tk.Event) -> None:
+        self._set_location_display(self.location_var.get())
+
+    def _set_location_display(self, location_key: str) -> None:
+        location = LOCATIONS[location_key]
+        self.location_lat.set(f"Lat: {location['lat']:.3f}")
+        self.location_lon.set(f"Lon: {location['lon']:.3f}")
+        self.location_alt.set(f"Alt: {location['alt_m']:.1f} m")
+        self.location_tz.set(f"TZ: {location['tz']}")
+        self.location_divergence.set(f"Divergencia: {location['divergence']}")
+
     def _simulate_worker(self, inicio_iso: str, fin_iso: str, paso_seg: int, method: str) -> None:
+        location = LOCATIONS[self.location_var.get()]
         try:
             df = simular_dataframe(
                 inicio_iso=inicio_iso,
                 fin_iso=fin_iso,
                 paso_seg=paso_seg,
-                lat=LAT_Quito,
-                lon=LON_Quito,
-                alt_m=ALT_Quito,
-                zona_horaria=ZONA_Quito,
+                lat=location["lat"],
+                lon=location["lon"],
+                alt_m=location["alt_m"],
+                zona_horaria=location["tz"],
                 backend="pysolar",
             )
         except Exception as exc:

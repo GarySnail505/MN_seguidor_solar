@@ -37,5 +37,5 @@ def obtener_azimut_elevacion(
         dt = dt.astimezone(ZoneInfo(zona_horaria))
 
     elevacion_deg = float(get_altitude(lat, lon, dt))
-    azimut_deg = float(get_azimuth(lat, lon, dt)) % 360.0
+    azimut_deg = float(get_azimuth(lat, lon, dt)) #% 360.0
     return azimut_deg, elevacion_deg

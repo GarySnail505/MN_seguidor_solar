@@ -82,10 +82,16 @@ def simular_dataframe(
         s = vector_incidencia_desde_az_el(az, el)
 
         # Semilla: si hay paso anterior, usarlo. Si no, solución cerrada.
-        if phi_prev is None:
+        if el_deg < 1.0:
+            phi0, beta0 = solucion_cerrada_semilla(s)
+        elif phi_prev is None:
             phi0, beta0 = solucion_cerrada_semilla(s)
         else:
             phi0, beta0 = phi_prev, beta_prev
+        # if phi_prev is None:
+        #     phi0, beta0 = solucion_cerrada_semilla(s)
+        # else:
+        #     phi0, beta0 = phi_prev, beta_prev
 
         # Newton (sistema)
         phi_n, beta_n, info_n = resolver_newton_sistema(s, phi0, beta0)

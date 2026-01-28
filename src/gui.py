@@ -225,11 +225,12 @@ class SolarTrackerGUI:
             [], [], [], color="#4A90E2", linewidth=2, label="Normal del panel"
         )
         self.sun_sphere = self.ax_panel.scatter([], [], [], s=80, color="#F5A623", label="Sol")
-        self.time_text = self.ax_panel.text2D(0.02, 0.02, "", transform=self.ax_panel.transAxes)
+        self.time_text = self.ax_panel.text2D(0.05, 0.92, "", transform=self.ax_panel.transAxes)
 
         self.roll_line, = self.ax_plot.plot([], [], label="roll (panel)")
         self.pitch_line, = self.ax_plot.plot([], [], label="pitch (panel)")
         self.elev_line, = self.ax_plot.plot([], [], label="elevación (sol)")
+
         self.ax_plot.legend(loc="upper right")
 
         self.ax_panel.legend(loc="upper right")

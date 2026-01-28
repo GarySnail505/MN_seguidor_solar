@@ -13,6 +13,13 @@ from src.cinematica import normal_panel, rotacion_x, rotacion_y, vector_incidenc
 from src.simulacion import simular_dataframe
 
 LOCATIONS = {
+    "Quito (EPN) — Referencia": {
+        "lat": -0.1807,
+        "lon": -78.4678,
+        "alt_m": 2850.0,
+        "tz": "America/Guayaquil",
+        "divergence": "Sin divergencia teórica esperada (caso base).",
+    },
     "Macapá — Newton (cenit/equinoccios)": {
         "lat": 0.035,
         "lon": -51.07,
@@ -157,7 +164,7 @@ class SolarTrackerGUI:
 
         location_frame = ttk.LabelFrame(frame, text="Ubicación", padding=8)
         location_frame.grid(row=0, column=2, sticky="nsew")
-        self.location_var = tk.StringVar(value=next(iter(LOCATIONS.keys())))
+        self.location_var = tk.StringVar(value="Quito (EPN) — Referencia")
         self.location_combo = ttk.Combobox(
             location_frame,
             textvariable=self.location_var,
@@ -218,14 +225,14 @@ class SolarTrackerGUI:
             [], [], [], color="#4A90E2", linewidth=2, label="Normal del panel"
         )
         self.sun_sphere = self.ax_panel.scatter([], [], [], s=80, color="#F5A623", label="Sol")
-        self.time_text = self.ax_panel.text2D(0.05, 0.92, "", transform=self.ax_panel.transAxes)
+        self.time_text = self.ax_panel.text2D(0.02, 0.02, "", transform=self.ax_panel.transAxes)
 
         self.roll_line, = self.ax_plot.plot([], [], label="roll (panel)")
         self.pitch_line, = self.ax_plot.plot([], [], label="pitch (panel)")
         self.elev_line, = self.ax_plot.plot([], [], label="elevación (sol)")
         self.ax_plot.legend(loc="upper right")
 
-        self.ax_panel.legend(loc="upper left")
+        self.ax_panel.legend(loc="upper right")
 
         canvas = FigureCanvasTkAgg(self.figure, master=self.root)
         canvas.draw()

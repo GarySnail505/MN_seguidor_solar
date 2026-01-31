@@ -56,7 +56,7 @@ def crear_animacion_3d(
     ax2 = fig.add_subplot(1, 2, 2, projection="3d")
 
     _configurar_ejes(ax1, "Método 1: Newton (sistema)")
-    _configurar_ejes(ax2, "Método 2: Levenberg–Marquardt")
+    _configurar_ejes(ax2, "Método 2: Gradiente (paso fijo)")
 
     poly1 = Poly3DCollection([], alpha=0.6)
     poly2 = Poly3DCollection([], alpha=0.6)
@@ -85,11 +85,11 @@ def crear_animacion_3d(
         v1 = _panel_vertices(phi_n, beta_n)
         poly1.set_verts([v1])
 
-        # LM
-        phi_lm = float(df.loc[i, "phi_lm_rad"])
-        beta_lm = float(df.loc[i, "beta_lm_rad"])
-        n_lm = normal_panel(phi_lm, beta_lm)
-        v2 = _panel_vertices(phi_lm, beta_lm)
+        # Gradiente (paso fijo)
+        phi_g = float(df.loc[i, "phi_grad_rad"])
+        beta_g = float(df.loc[i, "beta_grad_rad"])
+        n_g = normal_panel(phi_g, beta_g)
+        v2 = _panel_vertices(phi_g, beta_g)
         poly2.set_verts([v2])
 
         # Vector solar
@@ -105,14 +105,14 @@ def crear_animacion_3d(
         nor_line1.set_data([0, n_scale*n_n[0]], [0, n_scale*n_n[1]])
         nor_line1.set_3d_properties([0, n_scale*n_n[2]])
 
-        nor_line2.set_data([0, n_scale*n_lm[0]], [0, n_scale*n_lm[1]])
-        nor_line2.set_3d_properties([0, n_scale*n_lm[2]])
+        nor_line2.set_data([0, n_scale*n_g[0]], [0, n_scale*n_g[1]])
+        nor_line2.set_3d_properties([0, n_scale*n_g[2]])
 
         err_n = angulo_incidencia_grados(n_n, s)
-        err_lm = angulo_incidencia_grados(n_lm, s)
+        err_g = angulo_incidencia_grados(n_g, s)
 
         texto1.set_text(f"Frame {i}/{len(df)-1}\nIncidencia: {err_n:.6f}°")
-        texto2.set_text(f"Frame {i}/{len(df)-1}\nIncidencia: {err_lm:.6f}°")
+        texto2.set_text(f"Frame {i}/{len(df)-1}\nIncidencia: {err_g:.6f}°")
 
         return poly1, poly2, sol_line1, nor_line1, sol_line2, nor_line2, texto1, texto2
 

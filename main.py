@@ -6,7 +6,7 @@ from src.gui import launch_gui
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Seguidor solar 2GDL con dos métodos numéricos + animación 3D."
+        description="Seguidor solar 2GDL con dos métodos numéricos (Newton + Gradiente) + animación 3D."
     )
 
     parser.add_argument("--inicio", type=str, default="2026-01-09T06:00",

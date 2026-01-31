@@ -12,7 +12,7 @@ from src.cinematica import (
     solucion_cerrada_semilla
 )
 from src.metodos.newton_sistema import resolver_newton_sistema
-from src.metodos.levenberg_marquardt import resolver_levenberg_marquardt
+from src.metodos.gradiente_paso_fijo import resolver_gradiente_paso_fijo
 
 def _normalizar_fecha(fecha_iso: str, zona_horaria: str) -> pd.Timestamp:
     t = pd.Timestamp(fecha_iso)
@@ -106,16 +106,25 @@ def simular_dataframe(
 
         err_n = angulo_incidencia_grados(n_n, s)
 
-        # LM (mínimos cuadrados)
-        phi_lm, beta_lm, info_lm = resolver_levenberg_marquardt(s, phi0, beta0)
-        n_lm = normal_panel(phi_lm, beta_lm)
-        err_lm = angulo_incidencia_grados(n_lm, s)
+        # Gradiente con paso fijo (método contrastante: puede fallar)
+        # Nota: por defecto usa semilla fija (0,0) y kmax moderado para que
+        # en algunas horas NO alcance el mínimo. Esto permite contrastar con Newton.
+        phi_g, beta_g, info_g = resolver_gradiente_paso_fijo(
+            s,
+            phi0,
+            beta0,
+            alpha=0.45,
+            kmax=25,
+            semilla_fija=True,
+        )
+        n_g = normal_panel(phi_g, beta_g)
+        err_g = angulo_incidencia_grados(n_g, s)
 
-        # Semilla para siguiente paso
+        # Semilla para siguiente paso (solo Newton)
         if info_n["convergio"]:
             phi_prev, beta_prev = phi_n, beta_n
         else:
-            phi_prev, beta_prev = phi_lm, beta_lm
+            phi_prev, beta_prev = phi0, beta0
 
         filas.append({
             "tiempo": t.isoformat(),
@@ -129,13 +138,13 @@ def simular_dataframe(
             "ok_newton": info_n["convergio"],
             "motivo_newton": info_n["motivo"],
 
-            "phi_lm_rad": phi_lm,
-            "beta_lm_rad": beta_lm,
-            "error_lm_deg": err_lm,
-            "iter_lm": info_lm["iteraciones"],
-            "ok_lm": info_lm["convergio"],
-            "motivo_lm": info_lm["motivo"],
-            "lambda_lm": info_lm.get("lambda_final", None),
+            "phi_grad_rad": phi_g,
+            "beta_grad_rad": beta_g,
+            "error_grad_deg": err_g,
+            "iter_grad": info_g["iteraciones"],
+            "ok_grad": info_g["convergio"],
+            "motivo_grad": info_g["motivo"],
+            "alpha_grad": info_g.get("alpha", None),
         })
 
     return pd.DataFrame(filas)

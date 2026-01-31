@@ -1,41 +1,63 @@
-# Seguidor Solar 2GDL (Roll/Pitch) con Métodos Numéricos + Animación 3D
+# Seguidor Solar 2GDL (roll/pitch) con 2 métodos numéricos + animación 3D
 
-Este proyecto calcula la orientación de un panel solar con 2 grados de libertad:
-- roll (φ): giro alrededor del eje Norte (eje y en ENU)
-- pitch (β): giro alrededor del eje Este (eje x en ENU)
+Este proyecto simula un **seguidor solar de 2 grados de libertad** (2GDL) que orienta un panel para que su **normal** quede alineada con la dirección del sol.
 
-Objetivo: alinear la normal del panel con la dirección de incidencia solar para maximizar la captación
-(ángulo de incidencia cercano a 0°).
+- **roll (φ)**: giro alrededor del eje **Norte** (eje *y* en ENU)
+- **pitch (β)**: giro alrededor del eje **Este** (eje *x* en ENU)
 
-Métodos numéricos:
-1) Newton–Raphson (sistema no lineal 2×2): método principal (preciso cuando converge).
-2) Levenberg–Marquardt (mínimos cuadrados no lineales): método alternativo (más robusto).
+> Objetivo: **incidencia ≈ 0°** (el ángulo entre la normal del panel y el vector hacia el sol).
 
-Salidas:
-- CSV con resultados (ambos métodos)
-- Gráficas de diagnóstico
-- Animación 3D comparando ambos métodos (GIF y MP4)
+## Métodos numéricos
 
-Convención:
-- Azimut: desde Norte hacia Este (N=0°, E=90°, S=180°, W=270°)
-- Elevación: 0° en horizonte, positiva hacia arriba
+1) **Newton–Raphson (sistema no lineal 2×2)**
+   - Método principal (rápido y preciso cuando converge).
 
-Instalación:
-  pip install -r requisitos.txt
+2) **Gradiente descendente con paso fijo (método contrastante)**
+   - Método intencionalmente *más frágil*.
+   - Usa **paso fijo** (sin búsqueda de línea) y normalmente **pocas iteraciones**, así que puede quedarse con error.
+   - Se usa para **comparar** contra Newton.
 
-Ejecución (Quito por defecto):
-  python main.py --inicio 2026-01-09T06:00 --horas 12 --paso 60 --backend pvlib --gif --mp4
+## Requisitos
 
-<<<<<<< HEAD
-GUI (Quito por defecto):
-  python -m src.gui
-=======
-Interfaz gráfica (GUI):
-  python main.py --gui
->>>>>>> rama_gui
+Instale dependencias:
 
-Pruebas:
-  pytest -q
+```bash
+pip install -r requisitos.txt
+```
 
-Nota FFmpeg:
-Para exportar MP4, Matplotlib requiere ffmpeg instalado y en PATH. Si no está, el GIF sí se genera.
+> Nota: para exportar MP4, Matplotlib requiere **FFmpeg** instalado y en el `PATH`.
+
+## Ejecución
+
+### Opción A: Modo consola (genera CSV + gráficas y opcionalmente animación)
+
+```bash
+python main.py --inicio 2026-01-09T06:00 --horas 12 --paso 60 --backend pysolar --gif --mp4
+```
+
+Salidas (por defecto en `salidas/`):
+- `simulacion.csv`
+- `angulos.png`
+- `error_incidencia.png`
+- `animacion_3d.gif` / `animacion_3d.mp4` (si se activan)
+
+### Opción B: Interfaz gráfica (GUI)
+
+```bash
+python main.py --gui
+```
+
+## Pruebas
+
+```bash
+pytest -q
+```
+
+## ¿Qué significa “incidencia”?
+
+La **incidencia** es el ángulo (en grados) entre:
+- la **normal del panel** `n(φ,β)`
+- el **vector hacia el sol** `u` (panel → sol)
+
+- Si `incidencia = 0°` ⇒ el panel está **perfectamente apuntando al sol**.
+- Si `incidencia` es grande ⇒ el panel está **mal orientado** (pierde captación).

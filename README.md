@@ -13,9 +13,7 @@ Este proyecto simula un **seguidor solar de 2 grados de libertad** (2GDL) que or
    - Método principal (rápido y preciso cuando converge).
 
 2) **Gradiente descendente con paso fijo (método contrastante)**
-   - Método intencionalmente *más frágil*.
    - Usa **paso fijo** (sin búsqueda de línea) y normalmente **pocas iteraciones**, así que puede quedarse con error.
-   - Se usa para **comparar** contra Newton.
 
 ## Requisitos
 

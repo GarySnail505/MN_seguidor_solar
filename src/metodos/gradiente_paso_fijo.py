@@ -16,8 +16,6 @@ Este gradiente es deliberadamente "no robusto":
 - Usa gradiente numérico (diferencias finitas).
 - Con alpha y kmax modestos, a veces oscila o no alcanza el mínimo.
 
-Eso es útil para el proyecto: Newton sirve como método preciso, y este
-sirve como método contrastante que puede fallar.
 """
 
 from __future__ import annotations
@@ -68,7 +66,9 @@ def resolver_gradiente_paso_fijo(
     kmax: int = 25,
     limitar_angulos: bool = True,
     semilla_fija: bool = True,
+
 ) -> tuple[float, float, dict]:
+    
     """Resuelve por gradiente descendente con paso fijo.
 
     Parámetros clave (para contraste):
@@ -78,6 +78,7 @@ def resolver_gradiente_paso_fijo(
     Retorna:
       phi, beta, info
     """
+
     u = np.asarray(u, dtype=float)
     u = u / np.linalg.norm(u)
 

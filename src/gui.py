@@ -95,52 +95,47 @@ class SolarTrackerGUI:
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(2, weight=1)
 
-        range_frame = ttk.LabelFrame(frame, text="Rango de simulación", padding=8)
+        range_frame = ttk.LabelFrame(frame, text="Día de simulación", padding=8)
         range_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
 
         today = datetime.now()
-        self.start_date = tk.StringVar(value=today.strftime("%Y-%m-%d"))
+        self.sim_date = tk.StringVar(value=today.strftime("%Y-%m-%d"))
         self.start_time = tk.StringVar(value="06:00")
-        self.end_date = tk.StringVar(value=today.strftime("%Y-%m-%d"))
         self.end_time = tk.StringVar(value="18:00")
 
-        ttk.Label(range_frame, text="Inicio (YYYY-MM-DD)").grid(row=0, column=0, sticky="w")
-        ttk.Label(range_frame, text="HH:MM").grid(row=0, column=1, sticky="w", padx=(4, 0))
-        ttk.Label(range_frame, text="Fin (opcional)").grid(row=1, column=0, sticky="w", pady=(6, 0))
-        ttk.Label(range_frame, text="HH:MM").grid(
-            row=1, column=1, sticky="w", padx=(4, 0), pady=(6, 0)
-        )
+        ttk.Label(range_frame, text="Fecha").grid(row=0, column=0, sticky="w")
+        ttk.Label(range_frame, text="Inicio (HH:MM)").grid(row=0, column=1, sticky="w", padx=(4, 0))
+        ttk.Label(range_frame, text="Fin (HH:MM)").grid(row=0, column=2, sticky="w", padx=(4, 0))
+        ttk.Label(range_frame, text="Paso (s)").grid(row=0, column=3, sticky="w", padx=(12, 0))
 
-        ttk.Entry(range_frame, textvariable=self.start_date, width=12).grid(row=0, column=0)
-        ttk.Entry(range_frame, textvariable=self.start_time, width=8).grid(
-            row=0, column=1, padx=(4, 0)
+        ttk.Entry(range_frame, textvariable=self.sim_date, width=12).grid(
+            row=1, column=0, sticky="w"
         )
-        ttk.Entry(range_frame, textvariable=self.end_date, width=12).grid(
-            row=1, column=0, pady=(6, 0)
+        ttk.Entry(range_frame, textvariable=self.start_time, width=8).grid(
+            row=1, column=1, padx=(4, 0), sticky="w"
         )
         ttk.Entry(range_frame, textvariable=self.end_time, width=8).grid(
-            row=1, column=1, padx=(4, 0), pady=(6, 0)
+            row=1, column=2, padx=(4, 0), sticky="w"
         )
 
-        ttk.Label(range_frame, text="Paso (s)").grid(row=0, column=2, sticky="w", padx=(12, 0))
         self.step_seconds = tk.IntVar(value=300)
         ttk.Entry(range_frame, textvariable=self.step_seconds, width=6).grid(
-            row=0, column=3, padx=(4, 0)
+            row=1, column=3, padx=(4, 0), sticky="w"
         )
 
         ttk.Label(range_frame, text="FPS (time-lapse)").grid(
-            row=1, column=2, sticky="w", padx=(12, 0), pady=(6, 0)
+            row=2, column=2, sticky="w", padx=(12, 0), pady=(6, 0)
         )
         self.fps = tk.IntVar(value=20)
         ttk.Entry(range_frame, textvariable=self.fps, width=6).grid(
-            row=1, column=3, padx=(4, 0), pady=(6, 0)
+            row=2, column=3, padx=(4, 0), pady=(6, 0), sticky="w"
         )
 
         ttk.Label(
             range_frame,
             text="Movimiento activo solo entre 06:00 y 18:00",
             foreground="#555",
-        ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(8, 0))
+        ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(8, 0))
 
         buttons_frame = ttk.Frame(frame)
         buttons_frame.grid(row=0, column=1, sticky="n", pady=(10, 0))
@@ -220,8 +215,11 @@ class SolarTrackerGUI:
         stats_frame = ttk.LabelFrame(top_container, text="Datos de métodos", padding=8)
         stats_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 12), pady=12)
 
+        stats_table_frame = ttk.Frame(stats_frame)
+        stats_table_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
         self.stats_table = ttk.Treeview(
-            stats_frame,
+            stats_table_frame,
             columns=("metric", "newton", "gradiente"),
             show="headings",
             height=5,
@@ -229,10 +227,18 @@ class SolarTrackerGUI:
         self.stats_table.heading("metric", text="Métrica")
         self.stats_table.heading("newton", text="Newton-Raphson")
         self.stats_table.heading("gradiente", text="Gradiente (paso fijo)")
-        self.stats_table.column("metric", width=220, anchor="w")
-        self.stats_table.column("newton", width=180, anchor="center")
-        self.stats_table.column("gradiente", width=180, anchor="center")
-        self.stats_table.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.stats_table.column("metric", width=220, anchor="w", stretch=False)
+        self.stats_table.column("newton", width=180, anchor="center", stretch=False)
+        self.stats_table.column("gradiente", width=180, anchor="center", stretch=False)
+        self.stats_table.pack(side=tk.TOP, fill=tk.X, expand=True)
+
+        stats_scroll_x = ttk.Scrollbar(
+            stats_table_frame,
+            orient="horizontal",
+            command=self.stats_table.xview,
+        )
+        self.stats_table.configure(xscrollcommand=stats_scroll_x.set)
+        stats_scroll_x.pack(side=tk.BOTTOM, fill=tk.X)
 
     def _setup_figures(self) -> None:
         self.figure = Figure(figsize=(13, 4.8), dpi=100)
@@ -364,20 +370,18 @@ class SolarTrackerGUI:
         return dt.isoformat()
 
     def _build_time_range(self) -> tuple[str, str]:
-        start_date = self.start_date.get().strip()
+        start_date = self.sim_date.get().strip()
         start_time = self.start_time.get().strip()
-        end_date = self.end_date.get().strip()
         end_time = self.end_time.get().strip()
 
         if not start_date or not start_time:
             raise ValueError("Complete fecha y hora de inicio.")
 
-        if not end_date or not end_time:
-            end_date = start_date
+        if not end_time:
             end_time = "18:00"
 
         inicio = self._parse_datetime(start_date, start_time)
-        fin = self._parse_datetime(end_date, end_time)
+        fin = self._parse_datetime(start_date, end_time)
 
         if fin < inicio:
             raise ValueError("La fecha final no puede ser anterior a la inicial.")

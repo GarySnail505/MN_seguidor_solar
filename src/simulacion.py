@@ -66,14 +66,14 @@ def calcular_estadisticas(df: pd.DataFrame, tiempos_metodos: dict) -> dict:
     stats = {
         "total_pasos": int(len(df_diurno)),
         "newton": {
-            "complejidad": "O(k) por paso (Newton 2x2)",
+            "complejidad": "O(k·D^3) total (D=2)",
             "iteraciones_promedio": float(df_diurno["iter_newton"].mean()),
             "tiempo_total_s": float(tiempos_metodos.get("newton", 0.0)),
             "precision_final_deg": float(df_diurno["error_newton_deg"].iloc[-1]),
             "estabilidad": _clasificar_estabilidad(df_diurno["ok_newton"]),
         },
         "gradiente": {
-            "complejidad": "O(k) por paso (gradiente numérico)",
+            "complejidad": "O(k·D) total (D=2)",
             "iteraciones_promedio": float(df_diurno["iter_grad"].mean()),
             "tiempo_total_s": float(tiempos_metodos.get("gradiente", 0.0)),
             "precision_final_deg": float(df_diurno["error_grad_deg"].iloc[-1]),

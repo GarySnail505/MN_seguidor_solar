@@ -46,16 +46,7 @@ def _generar_tiempos(
         segundos = horas * 3600
 
     n_pasos = int(segundos // paso_seg) + 1
-    tiempos = [t0 + pd.Timedelta(seconds=i * paso_seg) for i in range(n_pasos)]
-    tiempos_filtrados = [
-        t for t in tiempos if VENTANA_DIURNA_INICIO <= t.time() <= VENTANA_DIURNA_FIN
-    ]
-    if not tiempos_filtrados:
-        raise ValueError(
-            "El rango seleccionado no incluye horas diurnas "
-            "(06:00 a 18:00). Ajuste la simulación."
-        )
-    return tiempos_filtrados
+    return [t0 + pd.Timedelta(seconds=i * paso_seg) for i in range(n_pasos)]
 
 
 def _clasificar_estabilidad(ok_series: pd.Series) -> str:
@@ -68,24 +59,25 @@ def _clasificar_estabilidad(ok_series: pd.Series) -> str:
 
 
 def calcular_estadisticas(df: pd.DataFrame, tiempos_metodos: dict) -> dict:
-    if df.empty:
+    df_diurno = df[df["es_diurno"]] if "es_diurno" in df else df
+    if df_diurno.empty:
         return {}
 
     stats = {
-        "total_pasos": int(len(df)),
+        "total_pasos": int(len(df_diurno)),
         "newton": {
             "complejidad": "O(k) por paso (Newton 2x2)",
-            "iteraciones_promedio": float(df["iter_newton"].mean()),
+            "iteraciones_promedio": float(df_diurno["iter_newton"].mean()),
             "tiempo_total_s": float(tiempos_metodos.get("newton", 0.0)),
-            "precision_final_deg": float(df["error_newton_deg"].iloc[-1]),
-            "estabilidad": _clasificar_estabilidad(df["ok_newton"]),
+            "precision_final_deg": float(df_diurno["error_newton_deg"].iloc[-1]),
+            "estabilidad": _clasificar_estabilidad(df_diurno["ok_newton"]),
         },
         "gradiente": {
             "complejidad": "O(k) por paso (gradiente numérico)",
-            "iteraciones_promedio": float(df["iter_grad"].mean()),
+            "iteraciones_promedio": float(df_diurno["iter_grad"].mean()),
             "tiempo_total_s": float(tiempos_metodos.get("gradiente", 0.0)),
-            "precision_final_deg": float(df["error_grad_deg"].iloc[-1]),
-            "estabilidad": _clasificar_estabilidad(df["ok_grad"]),
+            "precision_final_deg": float(df_diurno["error_grad_deg"].iloc[-1]),
+            "estabilidad": _clasificar_estabilidad(df_diurno["ok_grad"]),
         },
     }
     return stats
@@ -117,6 +109,7 @@ def simular_dataframe(
     tiempo_gradiente = 0.0
 
     for t in tiempos:
+        es_diurno = VENTANA_DIURNA_INICIO <= t.time() <= VENTANA_DIURNA_FIN
         az_deg, el_deg = obtener_azimut_elevacion(
             fecha_hora=t,
             lat=lat,
@@ -131,57 +124,75 @@ def simular_dataframe(
 
         s = vector_incidencia_desde_az_el(az, el)
 
-        # Semilla: si hay paso anterior, usarlo. Si no, solución cerrada.
-        if el_deg < 1.0:
-            phi0, beta0 = solucion_cerrada_semilla(s)
-        elif phi_prev is None:
-            phi0, beta0 = solucion_cerrada_semilla(s)
+        # Semilla: si hay paso anterior, usarlo. En horario nocturno fijamos la posición.
+        if phi_prev is None:
+            if es_diurno:
+                phi0, beta0 = solucion_cerrada_semilla(s)
+            else:
+                phi0, beta0 = 0.0, 0.0
         else:
             phi0, beta0 = phi_prev, beta_prev
-        # if phi_prev is None:
-        #     phi0, beta0 = solucion_cerrada_semilla(s)
-        # else:
-        #     phi0, beta0 = phi_prev, beta_prev
 
-        # Newton (sistema)
-        inicio_newton = time.perf_counter()
-        phi_n, beta_n, info_n = resolver_newton_sistema(s, phi0, beta0)
-        tiempo_newton += time.perf_counter() - inicio_newton
-        n_n = normal_panel(phi_n, beta_n)
+        if not es_diurno:
+            phi_n = phi0
+            beta_n = beta0
+            err_n = np.nan
+            info_n = {
+                "iteraciones": 0,
+                "convergio": False,
+                "motivo": "Horario nocturno (panel fijo)",
+            }
+            phi_g = phi0
+            beta_g = beta0
+            err_g = np.nan
+            info_g = {
+                "iteraciones": 0,
+                "convergio": False,
+                "motivo": "Horario nocturno (panel fijo)",
+                "alpha": np.nan,
+            }
+        else:
+            if el_deg < 1.0:
+                phi0, beta0 = solucion_cerrada_semilla(s)
 
-        # Corrección física: la normal del panel debe apuntar hacia el sol.
-        # (Evita soluciones "invertidas" que son válidas en ecuaciones parciales,
-        # pero no tienen sentido para captación de energía.)
-        if float(np.dot(n_n, s)) < 0.0:
-            phi_n += np.pi
+            # Newton (sistema)
+            inicio_newton = time.perf_counter()
+            phi_n, beta_n, info_n = resolver_newton_sistema(s, phi0, beta0)
+            tiempo_newton += time.perf_counter() - inicio_newton
             n_n = normal_panel(phi_n, beta_n)
 
-        err_n = angulo_incidencia_grados(n_n, s)
+            # Corrección física: la normal del panel debe apuntar hacia el sol.
+            # (Evita soluciones "invertidas" que son válidas en ecuaciones parciales,
+            # pero no tienen sentido para captación de energía.)
+            if float(np.dot(n_n, s)) < 0.0:
+                phi_n += np.pi
+                n_n = normal_panel(phi_n, beta_n)
 
-        # Gradiente con paso fijo (método contrastante: puede fallar)
-        # Nota: por defecto usa semilla fija (0,0) y kmax moderado para que
-        # en algunas horas NO alcance el mínimo. Esto permite contrastar con Newton.
-        inicio_grad = time.perf_counter()
-        phi_g, beta_g, info_g = resolver_gradiente_paso_fijo(
-            s,
-            phi0,
-            beta0,
-            alpha=0.45,
-            kmax=25,
-            semilla_fija=True,
-        )
-        tiempo_gradiente += time.perf_counter() - inicio_grad
-        n_g = normal_panel(phi_g, beta_g)
-        err_g = angulo_incidencia_grados(n_g, s)
+            err_n = angulo_incidencia_grados(n_n, s)
 
-        # Semilla para siguiente paso (solo Newton)
-        if info_n["convergio"]:
+            # Gradiente con paso fijo (método contrastante: puede fallar)
+            # Nota: por defecto usa semilla fija (0,0) y kmax moderado para que
+            # en algunas horas NO alcance el mínimo. Esto permite contrastar con Newton.
+            inicio_grad = time.perf_counter()
+            phi_g, beta_g, info_g = resolver_gradiente_paso_fijo(
+                s,
+                phi0,
+                beta0,
+                alpha=0.45,
+                kmax=25,
+                semilla_fija=True,
+            )
+            tiempo_gradiente += time.perf_counter() - inicio_grad
+            n_g = normal_panel(phi_g, beta_g)
+            err_g = angulo_incidencia_grados(n_g, s)
+
+        # Semilla para siguiente paso (solo Newton en horario diurno)
+        if es_diurno and info_n["convergio"]:
             phi_prev, beta_prev = phi_n, beta_n
-        else:
-            phi_prev, beta_prev = phi0, beta0
 
         filas.append({
             "tiempo": t.isoformat(),
+            "es_diurno": es_diurno,
             "azimut_deg": az_deg,
             "elevacion_deg": el_deg,
 
@@ -241,8 +252,11 @@ def simular_y_guardar(
     df.to_csv(ruta_csv, index=False)
     ruta_stats = os.path.join(carpeta_salida, "estadisticas.txt")
     with open(ruta_stats, "w", encoding="utf-8") as f:
-        f.write("Resumen de métodos numéricos (06:00 - 18:00)\n")
-        f.write(f"Total de pasos: {stats['total_pasos']}\n\n")
+        f.write("Resumen de métodos numéricos (solo horas diurnas 06:00 - 18:00)\n")
+        if not stats:
+            f.write("No hay pasos diurnos en el rango seleccionado.\n")
+            return ruta_csv
+        f.write(f"Total de pasos diurnos: {stats['total_pasos']}\n\n")
         f.write("Newton-Raphson\n")
         f.write(f"  Complejidad: {stats['newton']['complejidad']}\n")
         f.write(f"  Iteraciones promedio: {stats['newton']['iteraciones_promedio']:.2f}\n")

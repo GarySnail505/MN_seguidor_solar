@@ -8,7 +8,7 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Seguidor solar 2GDL con dos métodos numéricos (Newton + Gradiente) "
-            "+ animación 3D. La simulación se restringe al horario 06:00–18:00."
+            "+ animación 3D. El panel se mantiene fijo fuera de 06:00–18:00."
         )
     )
 
@@ -18,7 +18,7 @@ def main():
         "--horas",
         type=float,
         default=12.0,
-        help="Duración en horas (se filtran únicamente horas diurnas 06:00–18:00).",
+        help="Duración en horas (el panel solo se mueve entre 06:00–18:00).",
     )
     parser.add_argument("--paso", type=int, default=60, help="Paso de simulación en segundos")
 

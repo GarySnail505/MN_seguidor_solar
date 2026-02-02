@@ -1,0 +1,397 @@
+\documentclass[12pt]{article}
+
+% ==================================================
+% INFORME TÉCNICO - SEGUIDOR SOLAR 2GDL (Roll/Pitch)
+% ==================================================
+
+\usepackage[spanish]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{siunitx}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{cite} % Para manejo de citas
+
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
+
+\lstset{basicstyle=\ttfamily\small, breaklines=true, frame=single,
+  numbers=left, numberstyle=\tiny, keywordstyle=\color{blue},
+  commentstyle=\color{gray}, stringstyle=\color{teal}, showstringspaces=false}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\vect}[1]{\mathbf{#1}}
+\newcommand{\phiroll}{\phi}   % Roll
+\newcommand{\betapitch}{\beta} % Pitch
+
+\title{\textbf{Informe Técnico}\\Seguidor Solar 2GDL (Roll/Pitch) con Métodos Numéricos}
+\author{\textbf{Asignatura:} Métodos Numéricos\\
+\textbf{Grupo:} 1\\
+\textbf{Integrantes:} Anahí Achote, Antonhy Alangasí,\\ Gary Defas, Lindsay Guzmán, Rommel Rivera\\
+\textbf{Docente:} Ing. Jonathan Zea}
+\date{02/02/2026}
+
+\begin{document}
+\maketitle
+\vspace{-0.6cm}
+
+\begin{abstract}
+Este informe documenta el diseño e implementación de un sistema de control para un seguidor solar de 2 grados de libertad (2GDL). El objetivo es maximizar la exposición a la luz solar calculando los ángulos de control \textit{roll} ($\phiroll$) y \textit{pitch} ($\betapitch$) en función de la posición solar dada por el azimut $\alpha$ y la elevación $\theta$. Se comparan dos estrategias numéricas: el método de Newton-Raphson (para alta precisión) y el método de Gradiente Descendente (como contraste). Se incluye un análisis de complejidad asintótica (Big-O) y resultados experimentales de validación.
+\end{abstract}
+
+\section{Introducción}
+La eficiencia energética de los sistemas fotovoltaicos está intrínsecamente ligada a la geometría de la radiación incidente. Fundamentalmente, la potencia generada por un panel es proporcional al coseno del ángulo de incidencia; por lo tanto, un sistema estático experimenta pérdidas significativas de rendimiento a medida que la posición aparente del sol varía a lo largo del día y del año. Para maximizar la captación energética, es imperativo minimizar este ángulo de desalineación, tarea que desempeñan los sistemas mecánicos conocidos como seguidores solares.
+
+En este contexto, el seguidor solar de dos grados de libertad (2GDL) representa una solución robusta, permitiendo la orientación de los módulos en torno a dos ejes independientes para rastrear la trayectoria solar con precisión. A diferencia de los sistemas fijos, estos dispositivos emplean actuadores y algoritmos de control para garantizar que el vector normal a la superficie del panel se mantenga paralelo a los rayos solares incidentes.
+
+El presente proyecto se centra en el modelado cinemático y la resolución numérica para el control de un seguidor solar tipo EPN (con rotaciones en los ejes \textit{roll} y \textit{pitch}). El desafío matemático radica en la transformación de coordenadas: la posición del sol está dada en un sistema topocéntrico (azimut $\alpha$ y elevación $\theta$), mientras que el mecanismo responde a ángulos de articulación ($\phiroll$ y $\betapitch$).
+
+Para resolver esta discrepancia y lograr la alineación perpendicular óptima, el problema se formula como la minimización del error vectorial entre la normal del panel y el vector solar. Se implementan y comparan dos estrategias numéricas: el método de \textbf{Newton-Raphson} para la resolución de sistemas no lineales y el método de \textbf{Gradiente Descendente} para la optimización de la función de costo, analizando en ambos casos su estabilidad, velocidad de convergencia y costo computacional.
+\begin{figure}[H]
+    \centering \includegraphics[width=0.7\linewidth]{foto_seguidor.jpg}
+    \caption{Ejemplo de seguidor solar de la Facultad de Ingeniería Mecánica (EPN).}
+    \label{fig:foto_seguidor}
+\end{figure}
+
+
+El presente proyecto aborda el cálculo numérico para un seguidor tipo EPN, el cual posee rotación en \textit{roll} (eje Norte) y \textit{pitch} (eje Este).
+
+\section{Metodología y Desarrollo Matemático}
+
+\subsection{Sistema de Coordenadas y Vector Solar}
+Se utiliza un sistema de referencia local ENU ($x$ Este, $y$ Norte, $z$ Arriba). La posición del sol se define mediante:
+\begin{itemize}
+    \item \textbf{Elevación ($\theta$):} Ángulo del sol respecto al horizonte.
+    \item \textbf{Azimut ($\alpha$):} Ángulo de la proyección respecto al Norte.
+\end{itemize}
+
+El vector unitario hacia el sol $\vect{s}$ es:
+\begin{equation*}
+\vect{s}(\alpha, \theta) = 
+\begin{bmatrix}
+\cos(\theta)\sin(\alpha) \\
+\cos(\theta)\cos(\alpha) \\
+\sin(\theta)
+\end{bmatrix}.
+\label{eq:vector_solar}
+\end{equation*}
+
+\subsection{Modelo Geométrico del Panel (Cinemática)}
+El sistema de seguimiento solar de la EPN posee dos grados de libertad rotacionales. Definimos la orientación del panel a partir de una posición inicial horizontal (mirando al cenit) mediante la aplicación secuencial de dos rotaciones.
+
+\subsubsection{Definición de Variables y Ejes de Rotación}
+\begin{itemize}
+    \item \textbf{Vector Normal Inicial ($\vect{n}_0$):} Representa la dirección a la que apunta el panel cuando está en reposo (horizontal). En el sistema ENU, apunta hacia arriba ($z$):
+    \begin{equation*}
+        \vect{n}_0 = \begin{bmatrix} 0 \\ 0 \\ 1 \end{bmatrix}.
+    \end{equation*}
+    
+    \item \textbf{Ángulo Pitch ($\betapitch$):} Es la rotación alrededor del eje $x$ (Eje Este-Oeste). Este movimiento inclina el panel de Norte a Sur.
+    \begin{itemize}
+        \item Variable en código: \texttt{beta\_rad}.
+        \item Matriz de rotación $R_x(\betapitch)$:
+        \begin{equation*}
+            R_x(\betapitch) = 
+            \begin{bmatrix}
+            1 & 0 & 0 \\
+            0 & \cos\betapitch & -\sin\betapitch \\
+            0 & \sin\betapitch & \cos\betapitch
+            \end{bmatrix}.
+        \end{equation*}
+    \end{itemize}
+
+    \item \textbf{Ángulo Roll ($\phiroll$):} Es la rotación alrededor del eje $y$ (Eje Norte-Sur). Este movimiento inclina el panel de Este a Oeste.
+    \begin{itemize}
+        \item Variable en código: \texttt{phi\_rad}.
+        \item Matriz de rotación $R_y(\phiroll)$:
+        \begin{equation*}
+            R_y(\phiroll) = 
+            \begin{bmatrix}
+            \cos\phiroll & 0 & \sin\phiroll \\
+            0 & 1 & 0 \\
+            -\sin\phiroll & 0 & \cos\phiroll
+            \end{bmatrix}.
+        \end{equation*}
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Deducción del Vector Normal Orientado}
+La cinemática del mecanismo establece que primero se aplica el \textit{pitch} y luego el \textit{roll}. Matemáticamente, esto equivale a pre-multiplicar el vector inicial por las matrices de rotación en ese orden:
+\begin{equation*}
+    \vect{n}(\phiroll, \betapitch) = R_y(\phiroll) \cdot (R_x(\betapitch) \cdot \vect{n}_0).
+\end{equation*}
+
+Desarrollando el producto matricial paso a paso:
+
+1. Aplicando Pitch ($R_x$) al vector inicial:
+\begin{equation*}
+    \vect{n}' = R_x(\betapitch)\vect{n}_0 = 
+    \begin{bmatrix}
+    1 & 0 & 0 \\
+    0 & \cos\betapitch & -\sin\betapitch \\
+    0 & \sin\betapitch & \cos\betapitch
+    \end{bmatrix}
+    \begin{bmatrix} 0 \\ 0 \\ 1 \end{bmatrix} =
+    \begin{bmatrix} 0 \\ -\sin\betapitch \\ \cos\betapitch \end{bmatrix}.
+\end{equation*}
+
+2. Aplicando Roll ($R_y$) al resultado intermedio $\vect{n}'$:
+\begin{equation*}
+    \vect{n}(\phiroll, \betapitch) = R_y(\phiroll)\vect{n}' = 
+    \begin{bmatrix}
+    \cos\phiroll & 0 & \sin\phiroll \\
+    0 & 1 & 0 \\
+    -\sin\phiroll & 0 & \cos\phiroll
+    \end{bmatrix}
+    \begin{bmatrix} 0 \\ -\sin\betapitch \\ \cos\betapitch \end{bmatrix}.
+\end{equation*}
+
+Realizando esta última multiplicación fila por columna, obtenemos la ecuación final utilizada en los métodos numéricos:
+\begin{equation*}
+    \vect{n}(\phiroll, \betapitch) = 
+    \begin{bmatrix}
+    (\cos\phiroll)(0) + (0)(-\sin\betapitch) + (\sin\phiroll)(\cos\betapitch) \\
+    (0)(0) + (1)(-\sin\betapitch) + (0)(\cos\betapitch) \\
+    (-\sin\phiroll)(0) + (0)(-\sin\betapitch) + (\cos\phiroll)(\cos\betapitch)
+    \end{bmatrix} =
+    \begin{bmatrix}
+    \sin(\phiroll)\cos(\betapitch) \\
+    -\sin(\betapitch) \\
+    \cos(\phiroll)\cos(\betapitch)
+    \end{bmatrix}.
+    \label{eq:normal_panel}
+\end{equation*}
+
+\subsection{Definición de Incidencia y Estrategia de Inicialización (Semilla)}
+Para garantizar el correcto desempeño de los métodos numéricos, es fundamental definir claramente la métrica de error a minimizar y el punto de partida de las iteraciones.
+
+\subsubsection{Ángulo de Incidencia ($\gamma$)}
+La métrica principal de desempeño en este proyecto es el ángulo de incidencia $\gamma$, definido como el ángulo entre el vector normal del panel $\vect{n}$ y el vector solar $\vect{s}$. Matemáticamente, dado que ambos vectores son unitarios:
+\begin{equation}
+    \gamma(\phiroll, \betapitch) = \arccos(\vect{n} \cdot \vect{s}).
+\end{equation}
+La influencia de este parámetro es directa en la eficiencia energética: el objetivo del control es lograr que $\gamma \to 0$, lo cual maximiza la irradiancia captada. En los métodos numéricos, este valor (o una función derivada de él, como $1 - \cos\gamma$) se utiliza como el criterio de parada y como función de costo.
+
+\subsubsection{Semilla Analítica (Solución Inicial)}
+Los métodos iterativos como Newton-Raphson requieren un punto de inicio cercano a la solución real para garantizar la convergencia. En este proyecto, se deduce una solución analítica aproximada igualando directamente las componentes de $\vect{n}$ y $\vect{s}$:
+\begin{itemize}
+    \item De la componente $y$: $-\sin(\betapitch) = s_y \implies \betapitch_0 = -\arcsin(s_y)$.
+    \item De la relación $x/z$: $\frac{\sin(\phiroll)\cos(\betapitch)}{\cos(\phiroll)\cos(\betapitch)} = \tan(\phiroll) = \frac{s_x}{s_z} \implies \phiroll_0 = \arctan\left(\frac{s_x}{s_z}\right)$.
+\end{itemize}
+Esta \textbf{semilla} $(\phiroll_0, \betapitch_0)$ es crítica para el proyecto por dos razones: reduce drásticamente el número de iteraciones necesarias (eficiencia computacional) y evita que el algoritmo converja a soluciones matemáticas válidas pero físicamente incorrectas (ej. el panel apuntando en dirección opuesta al sol).
+
+\subsection{Métodos Numéricos}
+
+\subsubsection{Método 1: Newton-Raphson Multivariable}
+El método de Newton-Raphson es una técnica iterativa utilizada para encontrar raíces de sistemas de ecuaciones no lineales $\vect{F}(\vect{x}) = \vect{0}$. Se fundamenta en la expansión de la serie de Taylor de primer orden alrededor de una estimación inicial \cite{chapra2015}.
+
+Para este problema, definimos el vector de incógnitas $\vect{x} = [\phiroll, \betapitch]^T$. El sistema a resolver surge de igualar las componentes $x$ e $y$ del vector normal $\vect{n}$ con el vector solar $\vect{s}$:
+\begin{align*}
+F_1(\phiroll,\betapitch) &= \sin(\phiroll)\cos(\betapitch) - s_x = 0 \\
+F_2(\phiroll,\betapitch) &= -\sin(\betapitch) - s_y = 0
+\end{align*}
+
+\paragraph{Linealización y Matriz Jacobiana.}
+El método aproxima la función vectorial mediante su recta tangente (hiperplano) en el punto actual. La pendiente de este hiperplano está dada por la matriz Jacobiana $J(\vect{x})$, que contiene las derivadas parciales de primer orden \cite{burden2011}:
+\begin{equation*}
+J(\phiroll, \betapitch) = 
+\begin{bmatrix}
+\frac{\partial F_1}{\partial \phiroll} & \frac{\partial F_1}{\partial \betapitch} \\
+\frac{\partial F_2}{\partial \phiroll} & \frac{\partial F_2}{\partial \betapitch} 
+\end{bmatrix} =
+\begin{bmatrix}
+\cos(\phiroll)\cos(\betapitch) & -\sin(\phiroll)\sin(\betapitch) \\
+0 & -\cos(\betapitch)
+\end{bmatrix}.
+\end{equation*}
+
+\paragraph{Algoritmo Iterativo.}
+En cada iteración $k$, se busca un incremento $\Delta \vect{x}$ que reduzca el error. Esto implica resolver el sistema lineal de ecuaciones:
+\begin{equation*}
+    J(\vect{x}_k) \cdot \Delta \vect{x}_k = -\vect{F}(\vect{x}_k).
+\end{equation*}
+Una vez obtenido $\Delta \vect{x}$, se actualiza la solución:
+\begin{equation*}
+    \vect{x}_{k+1} = \vect{x}_k + \Delta \vect{x}_k.
+\end{equation*}
+Este proceso se repite hasta que la norma del error $\|\vect{F}(\vect{x})\|$ sea menor a una tolerancia predefinida (e.g., $10^{-6}$).
+
+\subsubsection{Método 2: Gradiente Descendente (Paso Fijo)}
+A diferencia del método de Newton que busca raíces, el Gradiente Descendente es un algoritmo de optimización de primer orden utilizado para encontrar mínimos locales de una función diferenciable \cite{nocedal2006}. Aquí, reformulamos el problema cinemático como una minimización sin restricciones.
+
+\paragraph{Definición de la Función de Costo.}
+Definimos una función escalar $J_{costo} : \mathbb{R}^2 \to \mathbb{R}$ que cuantifica la "mala alineación" del panel. Usamos el complemento del producto punto entre la normal del panel $\vect{n}$ y el vector solar $\vect{s}$:
+\begin{equation*}
+    J_{costo}(\phiroll, \betapitch) = 1 - (\vect{n}(\phiroll, \betapitch) \cdot \vect{s}).
+    \label{eq:costo_J}
+\end{equation*}
+El objetivo es encontrar $\vect{x}^*$ tal que $J_{costo}(\vect{x}^*) \approx 0$.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\linewidth]{gradiante_j_costo.png}
+    \caption{Superficie de la función de costo $J(\phi, \beta)$ y visualización del valle de convergencia}
+    \label{fig:placeholder}
+\end{figure}
+
+\paragraph{Cálculo del Gradiente.}
+El algoritmo utiliza el vector gradiente $\nabla J_{costo}$, que apunta en la dirección de mayor crecimiento de la función. Analíticamente es el vector de derivadas parciales:
+\begin{equation*}
+    \nabla J_{costo}(\vect{x}) = 
+    \begin{bmatrix}
+    \frac{\partial J_{costo}}{\partial \phiroll} \\
+    \frac{\partial J_{costo}}{\partial \betapitch}
+    \end{bmatrix}.
+\end{equation*}
+
+
+En la implementación de este proyecto, se optó por una aproximación mediante \textbf{diferencias finitas centrales} para evitar la derivación analítica compleja y generalizar el código. Sea $h$ un paso de perturbación pequeño \cite{chapra2015}:
+\begin{equation*}
+    \frac{\partial J_{costo}}{\partial \phiroll} \approx \frac{J_{costo}(\phiroll + h, \betapitch) - J_{costo}(\phiroll - h, \betapitch)}{2h}.
+\end{equation*}
+
+\begin{equation*}
+    \frac{\partial J_{costo}}{\partial \betapitch} \approx \frac{J_{costo}(\phiroll, \betapitch + h) - J_{costo}(\phiroll, \betapitch - h)}{2h}.
+\end{equation*}
+
+\paragraph{Regla de Actualización.}
+Para minimizar la función, debemos movernos en la dirección opuesta al gradiente (descenso). La regla de actualización es:
+\begin{equation*}
+    \vect{x}_{k+1} = \vect{x}_k - \alpha \cdot \nabla J_{costo}(\vect{x}_k),
+\end{equation*}
+donde $\alpha$ es la \textbf{tasa de aprendizaje} (learning rate). En este estudio, se utiliza un $\alpha$ fijo (sin búsqueda de línea) para demostrar las limitaciones de estabilidad del método comparado con Newton \cite{goodfellow2016}.
+
+\subsection{Diagrama de Flujo}
+A continuación se describe el flujo lógico implementado en el software para cada instante de tiempo.
+
+\begin{figure}[H]
+    \centering
+    % PEGAR AQUÍ LA IMAGEN GENERADA CON EL CÓDIGO MERMAID
+    \includegraphics[width=0.45\linewidth]{diagrama_flujo.jpg}
+    \caption{Diagrama de flujo del algoritmo de control por instante de tiempo.}
+    \label{fig:flowchart}
+\end{figure}
+
+\section{Análisis de Resultados}
+
+\subsection{Complejidad Computacional (Big-O)}
+Analizamos el costo asintótico de cada método por iteración. Sea $D$ la dimensión del problema (aquí $D=2$).
+
+\begin{itemize}
+    \item \textbf{Newton-Raphson:} \begin{itemize}
+        \item Costo por iteración: Evaluar $F$ y $J$ es $O(D^2)$. Resolver el sistema lineal (Gauss) es $O(D^3)$.
+        \item Convergencia: Cuadrática cerca de la raíz. El número de iteraciones $k$ suele ser muy pequeño y casi constante ($k \approx 3-5$).
+        \item \textbf{Total:} $O(k \cdot D^3)$. Dado que $D=2$, es extremadamente rápido y preciso.
+    \end{itemize}
+    
+    \item \textbf{Gradiente Descendente:}
+    \begin{itemize}
+        \item Costo por iteración: Calcular el gradiente numérico implica múltiples evaluaciones de la función, siendo lineal respecto a la dimensión $O(D)$. La actualización es $O(D)$.
+        \item Convergencia: Lineal. El número de iteraciones $k$ depende fuertemente del número de condición de la función y del paso $\alpha$. Puede crecer como $O(1/\epsilon)$.
+        \item \textbf{Total:} $O(k \cdot D)$. Aunque el costo por paso es menor que Newton, $k$ puede ser miles de veces mayor para lograr la misma precisión.
+    \end{itemize}
+\end{itemize}
+
+\subsection{Datos Experimentales}
+Se ejecutó la simulación para un día completo (12 horas, paso de 60s). Complete la siguiente tabla con los valores obtenidos de su simulación:
+
+\begin{table}[H]
+\centering
+\caption{Comparación Experimental de Rendimiento en el día 02/02/2026}
+\begin{tabular}{lccc}
+\toprule
+Métrica & Newton-Raphson & Gradiente (Paso Fijo) \\
+\midrule
+Iteraciones promedio ($k_{avg}$) & 4.03 & 21.88 \\
+Tiempo total de simulación (s) & 0.0345 & 0.5482 \\
+Precisión final (Incidencia $\gamma$) & 0.0000 & 0.0063 \\
+Estabilidad numérica & Alta & Media \\
+\bottomrule
+\end{tabular}
+\label{tab:complejidad_exp}
+\end{table}
+
+\subsection{Trayectoria y Visualización}
+Las siguientes figuras muestra la evolución de los ángulos calculados, tanto de manera gráfica como en simulación 3D.
+En la Figura \ref{fig:trayectoria} se observa que Newton produce curvas suaves, mientras que el Gradiente presenta oscilaciones cuando el paso $\alpha$ no es óptimo.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\linewidth]{graph1.png}
+    \caption{Trayectoria de los ángulos $\phiroll$ y $\betapitch$ a lo largo del día con fecha en 02/02/2026}
+    \label{fig:trayectoria}
+\end{figure}
+
+En la siguiente Figura \ref{fig:sim_3d}, se puede ver la simulación en 3D usando ambos métodos. Observando que existe una desviación en la normal del panel que usa el método de Gradiante Descendente con punto fijo.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\linewidth]{sim_3d.png}
+    \caption{Simulación 3D del panel solar durante las 11:55 del día 02/02/2026}
+    \label{fig:sim_3d}
+\end{figure}
+
+\section{Discusión: Estabilidad y Limitaciones Numéricas}
+
+\subsection{Singularidad en Newton-Raphson}
+Aunque el método de Newton demuestra una convergencia cuadrática superior, su robustez está condicionada a la invertibilidad de la matriz Jacobiana $J$. Analíticamente, el determinante de $J$ se calcula como:
+\begin{equation*}
+    \det(J) = -\cos(\phiroll)\cos^2(\betapitch).
+\end{equation*}
+El método falla (diverge o produce división por cero) cuando $\det(J) \approx 0$. Esto ocurre físicamente en las configuraciones donde los ángulos se aproximan a $\pm \frac{\pi}{2}$ ($\pm 90^\circ$):
+\begin{itemize}
+    \item Si $\betapitch = \pm 90^\circ$: El panel apunta al horizonte Este/Oeste.
+    \item Si $\phiroll = \pm 90^\circ$: El panel apunta al horizonte Norte/Sur.
+\end{itemize}
+Para mitigar esto, la implementación depende críticamente de la \textbf{semilla analítica} descrita en la Sección 2.3, la cual posiciona al sistema en una zona segura (cuenca de atracción) lejos de estas singularidades antes de iniciar el proceso iterativo.
+
+\subsection{Oscilaciones en el Gradiente Descendente}
+El método de Gradiente con paso fijo ($\alpha = 0.45$) exhibe limitaciones inherentes a la elección de un hiperparámetro estático. Se identifican dos fenómenos críticos que afectan su desempeño:
+\begin{itemize}
+    \item \textbf{Overshooting (Sobrepaso):} En regiones donde el gradiente es pronunciado (cerca del mediodía solar o cuando el error inicial es grande), el paso fijo resulta excesivo. Esto provoca que el algoritmo "salte" sobre el mínimo global en lugar de converger suavemente hacia él, generando las oscilaciones de alta frecuencia observadas en la Figura \ref{fig:trayectoria}.
+    \item \textbf{Convergencia Lenta (Lag):} Si, por el contrario, se redujera $\alpha$ para evitar dichas oscilaciones, el sistema no alcanzaría a corregir la posición con la velocidad necesaria ante el movimiento continuo del sol, aumentando el error de seguimiento. Esta disyuntiva confirma que el método de paso fijo es insuficiente para aplicaciones de alta precisión sin un mecanismo de \textit{line search} o decaimiento del paso.
+\end{itemize}
+
+\section{Conclusiones}
+\begin{itemize}
+    \item El desarrollo matemático permitió mapear correctamente las coordenadas solares ($\alpha, \theta$) a los ángulos del mecanismo ($\phiroll, \betapitch$).
+    \item En términos de complejidad computacional, aunque Newton tiene un costo por paso de $O(D^3)$, su convergencia cuadrática lo hace muy superior al Gradiente ($O(1/\epsilon)$) para aplicaciones de tiempo real donde se requiere alta precisión ($\gamma \to 0$).
+    \item El análisis de estabilidad reveló que el método de Newton es susceptible a singularidades en ángulos extremos ($\pm 90^\circ$), riesgo que fue mitigado exitosamente mediante la inicialización con semilla analítica.
+    \item El método de Gradiente es útil como contraste pedagógico, evidenciando los problemas de elegir un tamaño de paso fijo (oscilaciones o convergencia lenta) frente a métodos de segundo orden.
+    \item La implementación cumple con todos los requisitos: visualización 3D, GUI interactiva y validación mediante comparación analítica.
+\end{itemize}
+
+% REFERENCIAS BIBLIOGRÁFICAS EN FORMATO APA 7ma EDICIÓN
+\begin{thebibliography}{99}
+
+\bibitem{burden2011}
+Burden, R. L., \& Faires, J. D. (2011). \textit{Análisis numérico} (9ª ed.). Cengage Learning. (Ver Capítulo 10: Soluciones numéricas de sistemas de ecuaciones no lineales, Secc. 10.2).
+
+\bibitem{chapra2015}
+Chapra, S. C., \& Canale, R. P. (2015). \textit{Métodos numéricos para ingenieros} (7ª ed.). McGraw-Hill Education. (Ver Capítulo 4: Series de Taylor y Capítulo 23: Diferenciación numérica).
+
+\bibitem{goodfellow2016}
+Goodfellow, I., Bengio, Y., \& Courville, A. (2016). \textit{Deep Learning}. MIT Press. (Ver Capítulo 4: Numerical Computation, Secc. 4.3: Gradient-Based Optimization). Disponible en \url{http://www.deeplearningbook.org}
+
+\bibitem{nocedal2006}
+Nocedal, J., \& Wright, S. J. (2006). \textit{Numerical optimization} (2ª ed.). Springer. (Ver Capítulo 3: Line Search Methods, Secc. 3.3: Steepest Descent).
+
+\end{thebibliography}
+
+\appendix
+\section{Anexo: Manual de Instalación}
+El proyecto requiere Python 3.9+. Instalar dependencias con:
+
+\texttt{pip install -r requisitos.txt}.
+
+
+Ejecutar la GUI con:
+\texttt{python main.py --gui}.
+
+\end{document}

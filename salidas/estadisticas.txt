@@ -1,0 +1,16 @@
+Resumen de métodos numéricos (solo horas diurnas 06:00 - 18:00)
+Total de pasos diurnos: 721
+
+Newton-Raphson
+  Complejidad: O(k·D^3) total (D=2)
+  Iteraciones promedio: 3.74
+  Tiempo total (s): 0.0967
+  Precisión final (deg): 0.0000
+  Estabilidad: Alta
+
+Gradiente (paso fijo)
+  Complejidad: O(k·D) total (D=2)
+  Iteraciones promedio: 23.51
+  Tiempo total (s): 1.7316
+  Precisión final (deg): 0.0060
+  Estabilidad: Media

@@ -1,10 +1,12 @@
 import argparse
+from datetime import datetime
 from src.simulacion import simular_y_guardar
 from src.graficas import generar_graficas
 from src.animacion_3d import crear_animacion_3d
 from src.gui import launch_gui
 
 def main():
+    hoy_default = datetime.now().strftime("%Y-%m-%d") + "T06:00"
     parser = argparse.ArgumentParser(
         description=(
             "Seguidor solar 2GDL con dos métodos numéricos (Newton + Gradiente) "
@@ -12,8 +14,8 @@ def main():
         )
     )
 
-    parser.add_argument("--inicio", type=str, default="2026-01-09T06:00",
-                        help="Fecha/hora de inicio ISO (ej: 2026-01-09T06:00)")
+    parser.add_argument("--inicio", type=str, default=hoy_default,
+                        help=f"Fecha/hora inicio ISO. Por defecto: HOY ({hoy_default})")
     parser.add_argument(
         "--horas",
         type=float,

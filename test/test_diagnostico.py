@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+# Agregar el directorio raíz del proyecto al path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import numpy as np
 from src.cinematica import (
     vector_incidencia_desde_az_el,
@@ -6,7 +12,7 @@ from src.cinematica import (
     angulo_incidencia_grados
 )
 from src.metodos.newton_sistema import resolver_newton_sistema
-from src.metodos.levenberg_marquardt import resolver_levenberg_marquardt
+from src.metodos.gradiente_paso_fijo import resolver_gradiente_paso_fijo
 
 def test_ambos_metodos_dejan_incidencia_casi_cero():
     rng = np.random.default_rng(123)
@@ -21,7 +27,7 @@ def test_ambos_metodos_dejan_incidencia_casi_cero():
         phi_n, beta_n, info_n = resolver_newton_sistema(s, phi0, beta0)
         err_n = angulo_incidencia_grados(normal_panel(phi_n, beta_n), s)
 
-        phi_lm, beta_lm, info_lm = resolver_levenberg_marquardt(s, phi0, beta0)
+        phi_lm, beta_lm, info_lm = resolver_gradiente_paso_fijo(s, phi0, beta0, semilla_fija=False)
         err_lm = angulo_incidencia_grados(normal_panel(phi_lm, beta_lm), s)
 
         assert err_n < 1e-6 or info_n["convergio"]

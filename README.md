@@ -29,15 +29,32 @@ pip install -r requisitos.txt
 
 ### Opción A: Modo consola (genera CSV + gráficas y opcionalmente animación)
 
+El programa está configurado para usar la **fecha actual** (hoy) por defecto si no se especifica ninguna.
+
+#### 1. Ejecutar con la fecha de hoy (Por defecto)
+Funciona igual en **Windows**, **Linux** y **macOS**. Solo omita el argumento `--inicio`:
+
 ```bash
-python main.py --inicio 2026-01-09T06:00 --horas 12 --paso 60 --backend pysolar --gif --mp4
+
+# Simula el día de hoy desde las 06:00 AM con duración de 12 horas
+python main.py --horas 12 --paso 60 --backend pysolar --gif
 ```
+
+#### 1. Ejecutar con la fecha específica
+Funciona igual en **Windows**, **Linux** y **macOS**. Solo omita el argumento `--inicio`.
+Se especifica en que fecha y desde que hora quiere la simulación siguiendo este formato:
+
+```bash
+python main.py --inicio 2025-06-21T06:00 --horas 12 --paso 60 --gif
+```
+
 
 Salidas (por defecto en `salidas/`):
 - `simulacion.csv`
 - `angulos.png`
 - `error_incidencia.png`
 - `animacion_3d.gif` / `animacion_3d.mp4` (si se activan)
+- `estadisticas.txt`
 
 ### Opción B: Interfaz gráfica (GUI)
 

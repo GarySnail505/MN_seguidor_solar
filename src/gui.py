@@ -2,7 +2,6 @@ import threading
 import tkinter as tk
 from datetime import datetime
 from tkinter import ttk, messagebox
-from tkcalendar import DateEntry
 
 import numpy as np
 from matplotlib.animation import FuncAnimation
@@ -109,12 +108,9 @@ class SolarTrackerGUI:
         ttk.Label(range_frame, text="Fin (HH:MM)").grid(row=0, column=2, sticky="w", padx=(4, 0))
         ttk.Label(range_frame, text="Paso (s)").grid(row=0, column=3, sticky="w", padx=(12, 0))
 
-        DateEntry(
-            range_frame,
-            textvariable=self.sim_date,
-            width=12,
-            date_pattern="yyyy-mm-dd",
-        ).grid(row=1, column=0, sticky="w")
+        ttk.Entry(range_frame, textvariable=self.sim_date, width=12).grid(
+            row=1, column=0, sticky="w"
+        )
         ttk.Entry(range_frame, textvariable=self.start_time, width=8).grid(
             row=1, column=1, padx=(4, 0), sticky="w"
         )

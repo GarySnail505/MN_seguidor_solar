@@ -4,3 +4,4 @@ matplotlib
 pysolar
 pillow
 pytest
+tkcalendar

@@ -79,6 +79,8 @@ class SolarTrackerGUI:
         self.root.title("Simulador de Seguidor Solar 2GDL")
         self.animation = None
         self.df = None
+        self.method = None
+        self.metrics = None
         self._animation_lock = threading.Lock()
 
         self._setup_inputs()
@@ -100,7 +102,6 @@ class SolarTrackerGUI:
         self.start_time = tk.StringVar(value="06:00")
         self.end_date = tk.StringVar(value=today.strftime("%Y-%m-%d"))
         self.end_time = tk.StringVar(value="18:00")
-        self.full_day = tk.BooleanVar(value=False)
 
         ttk.Label(range_frame, text="Inicio (YYYY-MM-DD)").grid(row=0, column=0, sticky="w")
         ttk.Label(range_frame, text="HH:MM").grid(row=0, column=1, sticky="w", padx=(4, 0))
@@ -134,9 +135,10 @@ class SolarTrackerGUI:
             row=1, column=3, padx=(4, 0), pady=(6, 0)
         )
 
-        ttk.Checkbutton(range_frame, text="Simular día completo", variable=self.full_day).grid(
-            row=2, column=0, columnspan=2, sticky="w", pady=(8, 0)
-        )
+        ttk.Label(
+            range_frame,
+            text="Horario forzado: 06:00 a 18:00 (sin movimiento nocturno).",
+        ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(8, 0))
 
         buttons_frame = ttk.Frame(frame)
         buttons_frame.grid(row=0, column=1, sticky="n", pady=(10, 0))
@@ -154,6 +156,20 @@ class SolarTrackerGUI:
             command=lambda: self._run_simulation("gradiente"),
         )
         self.btn_gradiente.pack(side=tk.LEFT, padx=6)
+
+        self.btn_both_3d = ttk.Button(
+            buttons_frame,
+            text="Mostrar dos simulaciones 3D",
+            command=lambda: self._run_simulation("ambos_3d"),
+        )
+        self.btn_both_3d.pack(side=tk.LEFT, padx=6)
+
+        self.btn_both_plot = ttk.Button(
+            buttons_frame,
+            text="Mostrar gráficas de dos métodos",
+            command=lambda: self._run_simulation("ambos_plot"),
+        )
+        self.btn_both_plot.pack(side=tk.LEFT, padx=6)
 
         self.btn_stop = ttk.Button(
             buttons_frame,
@@ -196,6 +212,11 @@ class SolarTrackerGUI:
             row=1, column=0, columnspan=3, sticky="w", pady=(6, 0)
         )
 
+        self.metrics_text = tk.StringVar(value="")
+        ttk.Label(frame, textvariable=self.metrics_text, wraplength=920).grid(
+            row=2, column=0, columnspan=3, sticky="w", pady=(4, 0)
+        )
+
     def _setup_figures(self) -> None:
         self.figure = Figure(figsize=(13, 4.8), dpi=100)
         gs = self.figure.add_gridspec(1, 2, wspace=0.3)
@@ -216,8 +237,14 @@ class SolarTrackerGUI:
         self.ax_plot.set_ylabel("Ángulo (deg)")
         self.ax_plot.grid(True)
 
-        self.panel_poly = Poly3DCollection([], alpha=0.6)
-        self.ax_panel.add_collection3d(self.panel_poly)
+        self.panel_poly_newton = Poly3DCollection(
+            [], alpha=0.6, facecolor="#4A90E2", label="Panel Newton"
+        )
+        self.panel_poly_grad = Poly3DCollection(
+            [], alpha=0.45, facecolor="#F5A623", label="Panel Gradiente"
+        )
+        self.ax_panel.add_collection3d(self.panel_poly_newton)
+        self.ax_panel.add_collection3d(self.panel_poly_grad)
         self.sun_vec_line, = self.ax_panel.plot(
             [], [], [], color="#F5A623", linewidth=2, label="Vector del sol"
         )
@@ -242,7 +269,12 @@ class SolarTrackerGUI:
 
     def _toggle_buttons(self, enabled: bool) -> None:
         state = tk.NORMAL if enabled else tk.DISABLED
-        for btn in (self.btn_newton, self.btn_gradiente):
+        for btn in (
+            self.btn_newton,
+            self.btn_gradiente,
+            self.btn_both_3d,
+            self.btn_both_plot,
+        ):
             btn.configure(state=state)
 
     def _stop_animation(self) -> None:
@@ -268,10 +300,15 @@ class SolarTrackerGUI:
         self.sun_vec_line.set_3d_properties([])
         self.normal_vec_line.set_data([], [])
         self.normal_vec_line.set_3d_properties([])
-        self.panel_poly.set_verts([])
+        self.panel_poly_newton.set_verts([])
+        self.panel_poly_grad.set_verts([])
         self.roll_line.set_data([], [])
         self.pitch_line.set_data([], [])
         self.elev_line.set_data([], [])
+        if hasattr(self, "roll_line_g"):
+            self.roll_line_g.set_data([], [])
+        if hasattr(self, "pitch_line_g"):
+            self.pitch_line_g.set_data([], [])
         self.sun_sphere._offsets3d = ([], [], [])
         self.time_text.set_text("")
         self.canvas.draw_idle()
@@ -281,10 +318,6 @@ class SolarTrackerGUI:
         return dt.isoformat()
 
     def _build_time_range(self) -> tuple[str, str]:
-        if self.full_day.get():
-            date = self.start_date.get().strip()
-            return f"{date}T00:00", f"{date}T23:59"
-
         start_date = self.start_date.get().strip()
         start_time = self.start_time.get().strip()
         end_date = self.end_date.get().strip()
@@ -295,12 +328,11 @@ class SolarTrackerGUI:
 
         if not end_date or not end_time:
             end_date = start_date
-            end_time = "23:59"
+            end_time = "18:00"
 
-        return (
-            self._parse_datetime(start_date, start_time),
-            self._parse_datetime(end_date, end_time),
-        )
+        inicio = self._parse_datetime(start_date, start_time)
+        fin = self._parse_datetime(end_date, end_time)
+        return inicio, fin
 
     def _run_simulation(self, method: str) -> None:
         try:
@@ -320,6 +352,7 @@ class SolarTrackerGUI:
             return
 
         self._toggle_buttons(False)
+        self.metrics_text.set("")
         self.status.set("Calculando simulación...")
 
         thread = threading.Thread(
@@ -343,7 +376,7 @@ class SolarTrackerGUI:
     def _simulate_worker(self, inicio_iso: str, fin_iso: str, paso_seg: int, method: str) -> None:
         location = LOCATIONS[self.location_var.get()]
         try:
-            df = simular_dataframe(
+            df, metricas = simular_dataframe(
                 inicio_iso=inicio_iso,
                 fin_iso=fin_iso,
                 paso_seg=paso_seg,
@@ -352,6 +385,7 @@ class SolarTrackerGUI:
                 alt_m=location["alt_m"],
                 zona_horaria=location["tz"],
                 backend="pysolar",
+                return_metrics=True,
             )
         except Exception as exc:
             self.root.after(0, lambda: messagebox.showerror("Error", str(exc)))
@@ -359,10 +393,12 @@ class SolarTrackerGUI:
             self.root.after(0, lambda: self._toggle_buttons(True))
             return
 
-        self.root.after(0, lambda: self._start_animation(df, method))
+        self.root.after(0, lambda: self._start_animation(df, metricas, method))
 
-    def _start_animation(self, df, method: str) -> None:
+    def _start_animation(self, df, metricas: dict, method: str) -> None:
         self.df = df.reset_index(drop=True)
+        self.method = method
+        self.metrics = metricas
         self._stop_animation()
         self._reset_artists()
 
@@ -370,29 +406,63 @@ class SolarTrackerGUI:
         el = np.radians(self.df["elevacion_deg"].to_numpy())
 
         if method == "newton":
-            phi = self.df["phi_newton_rad"].to_numpy()
-            beta = self.df["beta_newton_rad"].to_numpy()
             method_label = "Método 1 (Newton)"
-        else:
-            phi = self.df["phi_grad_rad"].to_numpy()
-            beta = self.df["beta_grad_rad"].to_numpy()
+        elif method == "gradiente":
             method_label = "Método 2 (Gradiente paso fijo)"
+        elif method == "ambos_3d":
+            method_label = "Comparación 3D (Newton vs Gradiente)"
+        else:
+            method_label = "Comparación en gráficas (Newton vs Gradiente)"
 
-        roll_deg = np.degrees(phi)
-        pitch_deg = np.degrees(beta)
+        phi_n = self.df["phi_newton_rad"].to_numpy()
+        beta_n = self.df["beta_newton_rad"].to_numpy()
+        phi_g = self.df["phi_grad_rad"].to_numpy()
+        beta_g = self.df["beta_grad_rad"].to_numpy()
+
+        roll_n = np.degrees(phi_n)
+        pitch_n = np.degrees(beta_n)
+        roll_g = np.degrees(phi_g)
+        pitch_g = np.degrees(beta_g)
         elev_deg = np.degrees(el)
 
         self.ax_plot.set_title(f"Ángulos vs. posición solar - {method_label}")
         self.ax_plot.set_xlim(0, len(df))
-        min_angle = min(np.min(roll_deg), np.min(pitch_deg), np.min(elev_deg))
-        max_angle = max(np.max(roll_deg), np.max(pitch_deg), np.max(elev_deg))
+        min_angle = min(
+            np.min(roll_n),
+            np.min(pitch_n),
+            np.min(roll_g),
+            np.min(pitch_g),
+            np.min(elev_deg),
+        )
+        max_angle = max(
+            np.max(roll_n),
+            np.max(pitch_n),
+            np.max(roll_g),
+            np.max(pitch_g),
+            np.max(elev_deg),
+        )
         pad = max(5, (max_angle - min_angle) * 0.1)
         self.ax_plot.set_ylim(min_angle - pad, max_angle + pad)
 
         def update(i: int):
             s_vec = vector_incidencia_desde_az_el(az[i], el[i])
-            verts = _panel_vertices(phi[i], beta[i])
-            self.panel_poly.set_verts([verts])
+            if method == "newton":
+                verts = _panel_vertices(phi_n[i], beta_n[i])
+                self.panel_poly_newton.set_verts([verts])
+                self.panel_poly_grad.set_verts([])
+            elif method == "gradiente":
+                verts = _panel_vertices(phi_g[i], beta_g[i])
+                self.panel_poly_grad.set_verts([verts])
+                self.panel_poly_newton.set_verts([])
+            elif method == "ambos_3d":
+                verts_n = _panel_vertices(phi_n[i], beta_n[i])
+                verts_g = _panel_vertices(phi_g[i], beta_g[i])
+                self.panel_poly_newton.set_verts([verts_n])
+                self.panel_poly_grad.set_verts([verts_g])
+            else:
+                verts = _panel_vertices(phi_n[i], beta_n[i])
+                self.panel_poly_newton.set_verts([verts])
+                self.panel_poly_grad.set_verts([])
 
             scale = 1.2
             self.sun_vec_line.set_data([0, scale * s_vec[0]], [0, scale * s_vec[1]])
@@ -403,20 +473,70 @@ class SolarTrackerGUI:
                 [scale * s_vec[2]],
             )
 
-            n_vec = normal_panel(phi[i], beta[i])
+            if method == "newton":
+                n_vec = normal_panel(phi_n[i], beta_n[i])
+            elif method == "gradiente":
+                n_vec = normal_panel(phi_g[i], beta_g[i])
+            elif method == "ambos_3d":
+                n_vec = normal_panel(phi_n[i], beta_n[i])
+            else:
+                n_vec = normal_panel(phi_n[i], beta_n[i])
             self.normal_vec_line.set_data([0, scale * n_vec[0]], [0, scale * n_vec[1]])
             self.normal_vec_line.set_3d_properties([0, scale * n_vec[2]])
 
             x = np.arange(i + 1)
-            self.roll_line.set_data(x, roll_deg[: i + 1])
-            self.pitch_line.set_data(x, pitch_deg[: i + 1])
+            if method == "newton":
+                self.roll_line.set_data(x, roll_n[: i + 1])
+                self.pitch_line.set_data(x, pitch_n[: i + 1])
+                self.roll_line.set_label("roll Newton")
+                self.pitch_line.set_label("pitch Newton")
+                if hasattr(self, "roll_line_g"):
+                    self.roll_line_g.set_data([], [])
+                    self.roll_line_g.set_label("_nolegend_")
+                if hasattr(self, "pitch_line_g"):
+                    self.pitch_line_g.set_data([], [])
+                    self.pitch_line_g.set_label("_nolegend_")
+            elif method == "gradiente":
+                self.roll_line.set_data(x, roll_g[: i + 1])
+                self.pitch_line.set_data(x, pitch_g[: i + 1])
+                self.roll_line.set_label("roll Gradiente")
+                self.pitch_line.set_label("pitch Gradiente")
+                if hasattr(self, "roll_line_g"):
+                    self.roll_line_g.set_data([], [])
+                    self.roll_line_g.set_label("_nolegend_")
+                if hasattr(self, "pitch_line_g"):
+                    self.pitch_line_g.set_data([], [])
+                    self.pitch_line_g.set_label("_nolegend_")
+            elif method == "ambos_plot":
+                self.roll_line.set_data(x, roll_n[: i + 1])
+                self.pitch_line.set_data(x, pitch_n[: i + 1])
+                if not hasattr(self, "roll_line_g"):
+                    self.roll_line_g, = self.ax_plot.plot([], [], "--", label="roll Gradiente")
+                    self.pitch_line_g, = self.ax_plot.plot([], [], "--", label="pitch Gradiente")
+                self.roll_line_g.set_data(x, roll_g[: i + 1])
+                self.pitch_line_g.set_data(x, pitch_g[: i + 1])
+                self.roll_line.set_label("roll Newton")
+                self.pitch_line.set_label("pitch Newton")
+            else:
+                self.roll_line.set_data(x, roll_n[: i + 1])
+                self.pitch_line.set_data(x, pitch_n[: i + 1])
+                self.roll_line.set_label("roll Newton")
+                self.pitch_line.set_label("pitch Newton")
+                if hasattr(self, "roll_line_g"):
+                    self.roll_line_g.set_data([], [])
+                    self.roll_line_g.set_label("_nolegend_")
+                if hasattr(self, "pitch_line_g"):
+                    self.pitch_line_g.set_data([], [])
+                    self.pitch_line_g.set_label("_nolegend_")
             self.elev_line.set_data(x, elev_deg[: i + 1])
+            self.ax_plot.legend(loc="upper right")
 
             tiempo = self.df.loc[i, "tiempo"]
             self.time_text.set_text(f"{method_label}\n{tiempo}")
 
-            return (
-                self.panel_poly,
+            artists = [
+                self.panel_poly_newton,
+                self.panel_poly_grad,
                 self.sun_vec_line,
                 self.normal_vec_line,
                 self.sun_sphere,
@@ -424,7 +544,10 @@ class SolarTrackerGUI:
                 self.pitch_line,
                 self.elev_line,
                 self.time_text,
-            )
+            ]
+            if method == "ambos_plot":
+                artists.extend([self.roll_line_g, self.pitch_line_g])
+            return tuple(artists)
 
         with self._animation_lock:
             self.animation = FuncAnimation(
@@ -437,8 +560,24 @@ class SolarTrackerGUI:
             )
 
         self.status.set("Animación en marcha.")
+        self.metrics_text.set(self._format_metrics(metricas))
         self._toggle_buttons(True)
         self.canvas.draw()
+
+    def _format_metrics(self, metricas: dict) -> str:
+        return (
+            "Resultados: "
+            f"k_avg Newton={metricas['iter_prom_newton']:.2f}, "
+            f"k_avg Gradiente={metricas['iter_prom_grad']:.2f} | "
+            f"Tiempo Newton={metricas['tiempo_newton_s']:.4f}s, "
+            f"Tiempo Gradiente={metricas['tiempo_grad_s']:.4f}s | "
+            f"Tiempo total={metricas['tiempo_total_s']:.4f}s | "
+            f"Precisión final Newton={metricas['precision_final_newton_deg']:.3f}°, "
+            f"Gradiente={metricas['precision_final_grad_deg']:.3f}° | "
+            f"Estabilidad Newton={metricas['estabilidad_newton']}, "
+            f"Gradiente={metricas['estabilidad_grad']} | "
+            f"Complejidad: {metricas['complejidad_newton']} / {metricas['complejidad_grad']}"
+        )
 
 
 def launch_gui() -> None:

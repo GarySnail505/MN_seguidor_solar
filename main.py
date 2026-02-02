@@ -36,7 +36,7 @@ def main():
         launch_gui()
         return
 
-    ruta_csv = simular_y_guardar(
+    ruta_csv, ruta_metricas = simular_y_guardar(
         inicio_iso=args.inicio,
         horas=args.horas,
         paso_seg=args.paso,
@@ -61,6 +61,7 @@ def main():
 
     print("\nListo. Revise la carpeta:", args.salida)
     print("CSV:", ruta_csv)
+    print("Métricas:", ruta_metricas)
 
 if __name__ == "__main__":
     main()

@@ -6,12 +6,20 @@ from src.gui import launch_gui
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Seguidor solar 2GDL con dos métodos numéricos (Newton + Gradiente) + animación 3D."
+        description=(
+            "Seguidor solar 2GDL con dos métodos numéricos (Newton + Gradiente) "
+            "+ animación 3D. La simulación se restringe al horario 06:00–18:00."
+        )
     )
 
     parser.add_argument("--inicio", type=str, default="2026-01-09T06:00",
                         help="Fecha/hora de inicio ISO (ej: 2026-01-09T06:00)")
-    parser.add_argument("--horas", type=float, default=12.0, help="Duración en horas")
+    parser.add_argument(
+        "--horas",
+        type=float,
+        default=12.0,
+        help="Duración en horas (se filtran únicamente horas diurnas 06:00–18:00).",
+    )
     parser.add_argument("--paso", type=int, default=60, help="Paso de simulación en segundos")
 
     parser.add_argument("--lat", type=float, default=-0.1807, help="Latitud (Quito por defecto)")
@@ -61,6 +69,7 @@ def main():
 
     print("\nListo. Revise la carpeta:", args.salida)
     print("CSV:", ruta_csv)
+    print("Resumen:", f"{args.salida}/estadisticas.txt")
 
 if __name__ == "__main__":
     main()

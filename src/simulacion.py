@@ -1,4 +1,6 @@
 import os
+import time
+from datetime import time as time_of_day
 from typing import Optional
 
 import numpy as np
@@ -13,6 +15,9 @@ from src.cinematica import (
 )
 from src.metodos.newton_sistema import resolver_newton_sistema
 from src.metodos.gradiente_paso_fijo import resolver_gradiente_paso_fijo
+
+VENTANA_DIURNA_INICIO = time_of_day(6, 0)
+VENTANA_DIURNA_FIN = time_of_day(18, 0)
 
 def _normalizar_fecha(fecha_iso: str, zona_horaria: str) -> pd.Timestamp:
     t = pd.Timestamp(fecha_iso)
@@ -41,7 +46,49 @@ def _generar_tiempos(
         segundos = horas * 3600
 
     n_pasos = int(segundos // paso_seg) + 1
-    return [t0 + pd.Timedelta(seconds=i * paso_seg) for i in range(n_pasos)]
+    tiempos = [t0 + pd.Timedelta(seconds=i * paso_seg) for i in range(n_pasos)]
+    tiempos_filtrados = [
+        t for t in tiempos if VENTANA_DIURNA_INICIO <= t.time() <= VENTANA_DIURNA_FIN
+    ]
+    if not tiempos_filtrados:
+        raise ValueError(
+            "El rango seleccionado no incluye horas diurnas "
+            "(06:00 a 18:00). Ajuste la simulación."
+        )
+    return tiempos_filtrados
+
+
+def _clasificar_estabilidad(ok_series: pd.Series) -> str:
+    tasa = float(ok_series.mean()) if len(ok_series) else 0.0
+    if tasa >= 0.9:
+        return "Alta"
+    if tasa >= 0.6:
+        return "Media"
+    return "Baja"
+
+
+def calcular_estadisticas(df: pd.DataFrame, tiempos_metodos: dict) -> dict:
+    if df.empty:
+        return {}
+
+    stats = {
+        "total_pasos": int(len(df)),
+        "newton": {
+            "complejidad": "O(k) por paso (Newton 2x2)",
+            "iteraciones_promedio": float(df["iter_newton"].mean()),
+            "tiempo_total_s": float(tiempos_metodos.get("newton", 0.0)),
+            "precision_final_deg": float(df["error_newton_deg"].iloc[-1]),
+            "estabilidad": _clasificar_estabilidad(df["ok_newton"]),
+        },
+        "gradiente": {
+            "complejidad": "O(k) por paso (gradiente numérico)",
+            "iteraciones_promedio": float(df["iter_grad"].mean()),
+            "tiempo_total_s": float(tiempos_metodos.get("gradiente", 0.0)),
+            "precision_final_deg": float(df["error_grad_deg"].iloc[-1]),
+            "estabilidad": _clasificar_estabilidad(df["ok_grad"]),
+        },
+    }
+    return stats
 
 
 def simular_dataframe(
@@ -53,8 +100,9 @@ def simular_dataframe(
     zona_horaria: str,
     backend: str,
     horas: Optional[float] = None,
-    fin_iso: Optional[str] = None
-) -> pd.DataFrame:
+    fin_iso: Optional[str] = None,
+    return_stats: bool = False
+) -> pd.DataFrame | tuple[pd.DataFrame, dict]:
     tiempos = _generar_tiempos(
         inicio_iso=inicio_iso,
         paso_seg=paso_seg,
@@ -65,6 +113,8 @@ def simular_dataframe(
 
     filas = []
     phi_prev, beta_prev = None, None
+    tiempo_newton = 0.0
+    tiempo_gradiente = 0.0
 
     for t in tiempos:
         az_deg, el_deg = obtener_azimut_elevacion(
@@ -94,7 +144,9 @@ def simular_dataframe(
         #     phi0, beta0 = phi_prev, beta_prev
 
         # Newton (sistema)
+        inicio_newton = time.perf_counter()
         phi_n, beta_n, info_n = resolver_newton_sistema(s, phi0, beta0)
+        tiempo_newton += time.perf_counter() - inicio_newton
         n_n = normal_panel(phi_n, beta_n)
 
         # Corrección física: la normal del panel debe apuntar hacia el sol.
@@ -109,6 +161,7 @@ def simular_dataframe(
         # Gradiente con paso fijo (método contrastante: puede fallar)
         # Nota: por defecto usa semilla fija (0,0) y kmax moderado para que
         # en algunas horas NO alcance el mínimo. Esto permite contrastar con Newton.
+        inicio_grad = time.perf_counter()
         phi_g, beta_g, info_g = resolver_gradiente_paso_fijo(
             s,
             phi0,
@@ -117,6 +170,7 @@ def simular_dataframe(
             kmax=25,
             semilla_fija=True,
         )
+        tiempo_gradiente += time.perf_counter() - inicio_grad
         n_g = normal_panel(phi_g, beta_g)
         err_g = angulo_incidencia_grados(n_g, s)
 
@@ -147,7 +201,15 @@ def simular_dataframe(
             "alpha_grad": info_g.get("alpha", None),
         })
 
-    return pd.DataFrame(filas)
+    df = pd.DataFrame(filas)
+    if return_stats:
+        stats = calcular_estadisticas(
+            df,
+            {"newton": tiempo_newton, "gradiente": tiempo_gradiente},
+        )
+        return df, stats
+
+    return df
 
 
 def simular_y_guardar(
@@ -163,7 +225,7 @@ def simular_y_guardar(
 ) -> str:
     os.makedirs(carpeta_salida, exist_ok=True)
 
-    df = simular_dataframe(
+    df, stats = simular_dataframe(
         inicio_iso=inicio_iso,
         paso_seg=paso_seg,
         lat=lat,
@@ -171,9 +233,26 @@ def simular_y_guardar(
         alt_m=alt_m,
         zona_horaria=zona_horaria,
         backend=backend,
-        horas=horas
+        horas=horas,
+        return_stats=True,
     )
 
     ruta_csv = os.path.join(carpeta_salida, "simulacion.csv")
     df.to_csv(ruta_csv, index=False)
+    ruta_stats = os.path.join(carpeta_salida, "estadisticas.txt")
+    with open(ruta_stats, "w", encoding="utf-8") as f:
+        f.write("Resumen de métodos numéricos (06:00 - 18:00)\n")
+        f.write(f"Total de pasos: {stats['total_pasos']}\n\n")
+        f.write("Newton-Raphson\n")
+        f.write(f"  Complejidad: {stats['newton']['complejidad']}\n")
+        f.write(f"  Iteraciones promedio: {stats['newton']['iteraciones_promedio']:.2f}\n")
+        f.write(f"  Tiempo total (s): {stats['newton']['tiempo_total_s']:.4f}\n")
+        f.write(f"  Precisión final (deg): {stats['newton']['precision_final_deg']:.4f}\n")
+        f.write(f"  Estabilidad: {stats['newton']['estabilidad']}\n\n")
+        f.write("Gradiente (paso fijo)\n")
+        f.write(f"  Complejidad: {stats['gradiente']['complejidad']}\n")
+        f.write(f"  Iteraciones promedio: {stats['gradiente']['iteraciones_promedio']:.2f}\n")
+        f.write(f"  Tiempo total (s): {stats['gradiente']['tiempo_total_s']:.4f}\n")
+        f.write(f"  Precisión final (deg): {stats['gradiente']['precision_final_deg']:.4f}\n")
+        f.write(f"  Estabilidad: {stats['gradiente']['estabilidad']}\n")
     return ruta_csv

@@ -6,7 +6,9 @@ from src.animacion_3d import crear_animacion_3d
 from src.gui import launch_gui
 
 def main():
+    # Calcula la fecha de "hoy" cada vez que se ejecuta el script
     hoy_default = datetime.now().strftime("%Y-%m-%d") + "T06:00"
+    
     parser = argparse.ArgumentParser(
         description=(
             "Seguidor solar 2GDL con dos métodos numéricos (Newton + Gradiente) "
@@ -14,8 +16,10 @@ def main():
         )
     )
 
+    # Si el usuario no pone --inicio, se usa hoy_default
     parser.add_argument("--inicio", type=str, default=hoy_default,
                         help=f"Fecha/hora inicio ISO. Por defecto: HOY ({hoy_default})")
+    
     parser.add_argument(
         "--horas",
         type=float,
@@ -35,7 +39,8 @@ def main():
     parser.add_argument("--salida", type=str, default="salidas", help="Carpeta de salida")
 
     parser.add_argument("--gif", action="store_true", help="Generar animación GIF 3D")
-    parser.add_argument("--mp4", action="store_true", help="Generar animación MP4 3D (requiere ffmpeg)")
+    # ELIMINADO: Argumento --mp4 para que no aparezca en la ayuda ni se pueda usar
+    
     parser.add_argument("--fps", type=int, default=25, help="FPS del video/gif")
 
     parser.add_argument("--gui", action="store_true", help="Abrir interfaz gráfica (GUI)")
@@ -46,8 +51,9 @@ def main():
         launch_gui()
         return
 
+    # Ejecución de la simulación
     ruta_csv = simular_y_guardar(
-        inicio_iso=args.inicio,
+        inicio_iso=args.inicio, # Si no se especificó, usa hoy_default
         horas=args.horas,
         paso_seg=args.paso,
         lat=args.lat,
@@ -60,13 +66,14 @@ def main():
 
     generar_graficas(ruta_csv, args.salida)
 
-    if args.gif or args.mp4:
+    # Solo generamos GIF si se pide. MP4 está desactivado forzosamente.
+    if args.gif:
         crear_animacion_3d(
             ruta_csv=ruta_csv,
             carpeta_salida=args.salida,
             fps=args.fps,
             guardar_gif=args.gif,
-            guardar_mp4=args.mp4
+            guardar_mp4=False  # <--- CORRECCIÓN: Forzado a False
         )
 
     print("\nListo. Revise la carpeta:", args.salida)

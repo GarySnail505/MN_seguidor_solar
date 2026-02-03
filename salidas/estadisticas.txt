@@ -3,14 +3,14 @@ Total de pasos diurnos: 721
 
 Newton-Raphson
   Complejidad: O(k·D^3) total (D=2)
-  Iteraciones promedio: 3.74
-  Tiempo total (s): 0.0967
+  Iteraciones promedio: 3.70
+  Tiempo total (s): 0.1534
   Precisión final (deg): 0.0000
   Estabilidad: Alta
 
 Gradiente (paso fijo)
   Complejidad: O(k·D) total (D=2)
-  Iteraciones promedio: 23.51
-  Tiempo total (s): 1.7316
-  Precisión final (deg): 0.0060
+  Iteraciones promedio: 21.84
+  Tiempo total (s): 2.7183
+  Precisión final (deg): 0.0061
   Estabilidad: Media

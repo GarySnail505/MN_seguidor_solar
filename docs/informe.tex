@@ -1,0 +1,247 @@
+\documentclass[12pt]{article}
+
+% ==================================================
+% INFORME TÉCNICO - SEGUIDOR SOLAR 2GDL (Roll/Pitch)
+% ==================================================
+
+\usepackage[spanish]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{siunitx}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
+
+\lstset{basicstyle=\ttfamily\small, breaklines=true, frame=single,
+  numbers=left, numberstyle=\tiny, keywordstyle=\color{blue},
+  commentstyle=\color{gray}, stringstyle=\color{teal}, showstringspaces=false}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\vect}[1]{\mathbf{#1}}
+\newcommand{\phiroll}{\phi}
+\newcommand{\betapitch}{\beta}
+
+\title{\textbf{Informe Técnico}\\Seguidor Solar 2GDL (Roll/Pitch) con Métodos Numéricos y Animación 3D}
+\author{\textbf{Asignatura:} Métodos Numéricos\\
+\textbf{Grupo:} 2\\
+\textbf{Integrantes:} Anahí Achote, Antonhy Alangasí,\\ Gary Defas, Lindsay Guzmán, Rommel Rivera\\
+\textbf{Docente:} Ing. Jonathan Zea}
+\date{01/02/2026}
+
+\begin{document}
+\maketitle
+\vspace{-0.6cm}
+
+\begin{abstract}
+Este informe documenta el diseño e implementación de un seguidor solar con 2 grados de libertad (2GDL) para orientar un panel fotovoltaico mediante dos ángulos: roll $\phiroll$ y pitch $\betapitch$. El objetivo es alinear la normal del panel con el vector unitario que apunta hacia el Sol, minimizando el ángulo de incidencia. Se presenta el modelo geométrico, una solución analítica cerrada como referencia/semilla y la solución numérica por dos métodos: (i) Newton--Raphson para un sistema no lineal $2\times 2$ y (ii) Gradiente Descendente con paso fijo como método de contraste. La validación incluye GUI, gráficas de diagnóstico y una animación 3D.
+\end{abstract}
+
+\noindent\textbf{Palabras clave:} seguidor solar, cinemática, Newton--Raphson, gradiente descendente, posición solar, animación 3D.
+
+\section{Introducción}
+Un panel solar capta mayor energía cuando la radiación incide cerca de la normal de su superficie (incidencia cercana a $0^\circ$). En un panel fijo, la orientación óptima ocurre solo durante una fracción del día; el resto del tiempo aumenta el ángulo de incidencia y disminuye la captación. Un seguidor solar ajusta la orientación del panel en función de la posición aparente del Sol.
+
+En este proyecto se modela un seguidor con 2GDL, suficiente para orientar la normal en el espacio. Para cada instante se calcula $(\phiroll,\betapitch)$, se comparan dos métodos numéricos y se valida con evidencias gráficas y animación.
+
+\section{Planteamiento del problema}
+\subsection{Sistema de referencia}
+Se utiliza el sistema \textbf{ENU}: $x$ Este, $y$ Norte y $z$ Arriba.
+
+\subsection{Vector solar unitario}
+La dirección hacia el Sol se representa por un vector unitario $\vect{s}\in\R^3$, calculado a partir del azimut $\psi$ y la elevación $el$ (convención: azimut desde Norte hacia Este; elevación positiva sobre el horizonte):
+\begin{equation}
+\vect{s}(\psi,el)=
+\begin{bmatrix}
+\cos(el)\sin(\psi)\\
+\cos(el)\cos(\psi)\\
+\sin(el)
+\end{bmatrix}.
+\label{eq:s_vector}
+\end{equation}
+
+\subsection{Modelo geométrico del panel (2GDL)}
+Se toma como normal inicial del panel (panel horizontal) a $\vect{n}_0=[0,0,1]^T$. La orientación se parametriza con:
+\begin{itemize}
+  \item \textbf{pitch} $\betapitch$: rotación alrededor del eje $x$ (Este),
+  \item \textbf{roll} $\phiroll$: rotación alrededor del eje $y$ (Norte).
+\end{itemize}
+Aplicando primero $R_x(\betapitch)$ y luego $R_y(\phiroll)$, la normal del panel queda:
+\begin{equation}
+\vect{n}(\phiroll,\betapitch)=R_y(\phiroll)\,R_x(\betapitch)\,\vect{n}_0
+=
+\begin{bmatrix}
+\sin(\phiroll)\cos(\betapitch)\\
+-\sin(\betapitch)\\
+\cos(\phiroll)\cos(\betapitch)
+\end{bmatrix}.
+\label{eq:n_vector}
+\end{equation}
+
+\subsection{Ángulo de incidencia (métrica de desempeño)}
+El ángulo de incidencia $\theta$ entre la normal del panel y el vector solar se define como:
+\begin{equation}
+\theta(\phiroll,\betapitch)=\arccos\left(\frac{\vect{n}(\phiroll,\betapitch)\cdot\vect{s}}{\|\vect{n}(\phiroll,\betapitch)\|\,\|\vect{s}\|}\right),\qquad \theta\in[0,\pi].
+\label{eq:incidencia}
+\end{equation}
+Objetivo: minimizar $\theta$ en cada instante; idealmente $\theta\approx 0^\circ$.
+
+\section{Metodología}
+\subsection{Solución analítica (sin métodos numéricos)}
+La orientación óptima se obtiene imponiendo la alineación ideal $\vect{n}(\phiroll,\betapitch)=\vect{s}=[s_x,s_y,s_z]^T$ usando \eqref{eq:n_vector}. Se obtiene:
+\begin{align}
+\sin(\phiroll)\cos(\betapitch)&=s_x,\\
+-\sin(\betapitch)&=s_y,\\
+\cos(\phiroll)\cos(\betapitch)&=s_z.
+\end{align}
+Por tanto, despejando los ángulos:
+\begin{equation}
+\betapitch^{*} = -\arcsin(s_y),\qquad
+\phiroll^{*} = \operatorname{atan2}(s_x,s_z).
+\label{eq:sol_analitica}
+\end{equation}
+
+\paragraph{¿Por qué no se usa solo la solución analítica?}
+En teoría, \eqref{eq:sol_analitica} resuelve el problema geométrico. Sin embargo, en un sistema real es habitual necesitar métodos numéricos por robustez, restricciones mecánicas (límites de giro) o funciones objetivo más complejas. En este proyecto, la solución analítica se utiliza principalmente como \textbf{semilla inicial} para acelerar la convergencia de los métodos iterativos.
+
+\subsection{Método 1: Newton--Raphson (sistema no lineal $2\times 2$)}
+Se busca la raíz del sistema $F(\phiroll,\betapitch)=\vect{0}$ definido por la diferencia de componentes:
+\begin{align}
+F_1(\phiroll,\betapitch)&=\sin(\phiroll)\cos(\betapitch)-s_x,\\
+F_2(\phiroll,\betapitch)&=-\sin(\betapitch)-s_y.
+\end{align}
+El Jacobiano $J$ del sistema es:
+\begin{equation}
+J(\phiroll,\betapitch)=
+\begin{bmatrix}
+\cos(\phiroll)\cos(\betapitch) & -\sin(\phiroll)\sin(\betapitch)\\
+0 & -\cos(\betapitch)
+\end{bmatrix}.
+\end{equation}
+La regla de actualización en la iteración $k$ es:
+\begin{equation}
+J(\phiroll_k,\betapitch_k)\,\Delta_k=-F(\phiroll_k,\betapitch_k),\qquad
+\begin{bmatrix}\phiroll_{k+1}\\ \betapitch_{k+1}\end{bmatrix}=
+\begin{bmatrix}\phiroll_k\\ \betapitch_k\end{bmatrix}+\Delta_k.
+\end{equation}
+
+\subsection{Método 2: Gradiente Descendente con Paso Fijo}
+A diferencia de Newton, este método minimiza una función de costo escalar $J_{costo}$ relacionada con la alineación:
+\begin{equation}
+J_{costo}(\phiroll,\betapitch) = 1 - \vect{n}(\phiroll,\betapitch)\cdot\vect{s}.
+\end{equation}
+Si la alineación es perfecta, $\vect{n}\cdot\vect{s}=1$ y el costo es 0. La regla de actualización utiliza el gradiente negativo con un paso fijo $\alpha$:
+\begin{equation}
+\begin{bmatrix}\phiroll_{k+1}\\ \betapitch_{k+1}\end{bmatrix}=
+\begin{bmatrix}\phiroll_k\\ \betapitch_k\end{bmatrix}-\alpha\,\nabla J_{costo}(\phiroll_k,\betapitch_k).
+\end{equation}
+\textbf{Nota de diseño:} Este método se implementa intencionalmente con un paso fijo $\alpha$ y un número limitado de iteraciones para que sirva como \textit{contrastante} (más simple pero menos robusto) frente a la precisión de Newton.
+
+\subsection{Diagrama de flujo / Pseudocódigo}
+\begin{lstlisting}[language=Python, caption={Pseudocódigo simplificado por instante}]
+para cada instante t:
+    (psi, el) <- posicion_solar(t)
+    s <- vector_unitario(psi, el)
+    (phi0, beta0) <- solucion_analitica_semilla(s)
+
+    # Metodo Principal
+    (phiN, betaN) <- newton_raphson(s, phi0, beta0)
+    
+    # Metodo Contrastante
+    (phiG, betaG) <- gradiente_paso_fijo(s, phi0, beta0)
+
+    # Calculo de errores
+    thetaN <- incidencia(phiN, betaN, s)
+    thetaG <- incidencia(phiG, betaG, s)
+
+    guardar_resultados(t, s, phiN, betaN, thetaN, ...)
+fin
+\end{lstlisting}
+
+\section{Implementación (Python)}
+\subsection{Estructura del proyecto}
+El proyecto se organiza de forma modular:
+\begin{itemize}
+  \item \texttt{src/posicion\_solar.py}: cálculo de azimut y elevación (\texttt{pysolar}).
+  \item \texttt{src/cinematica.py}: matrices de rotación, normal e incidencia.
+  \item \texttt{src/metodos/}: implementaciones numéricas (\texttt{newton\_sistema.py}, \texttt{gradiente\_paso\_fijo.py}).
+  \item \texttt{src/simulacion.py}: bucle temporal y generación de CSV.
+  \item \texttt{src/graficas.py}: gráficas de ángulos y error.
+  \item \texttt{src/animacion\_3d.py}: generación de GIF/MP4.
+  \item \texttt{src/gui.py}: interfaz gráfica de usuario.
+\end{itemize}
+
+\subsection{Ejecución}
+Modo consola (ejemplo para generar CSV y animación):
+\begin{lstlisting}[language=bash]
+python main.py --inicio 2026-01-09T06:00 --horas 12 --paso 60 --gif
+\end{lstlisting}
+Modo Interfaz Gráfica (GUI):
+\begin{lstlisting}[language=bash]
+python main.py --gui
+\end{lstlisting}
+
+\section{Resultados}
+\subsection{Comparación de Métodos}
+Se evalúa el desempeño mediante el error de incidencia $\theta$. 
+\begin{itemize}
+    \item \textbf{Newton-Raphson:} Muestra convergencia cuadrática, logrando incidencias cercanas a $0^\circ$ (del orden de $10^{-6}$ grados o menos) en pocas iteraciones (típicamente $<5$).
+    \item \textbf{Gradiente (Paso Fijo):} Al usar un $\alpha$ constante, el método puede oscilar o converger lentamente. Sirve para ilustrar la importancia de un paso adaptativo o métodos de segundo orden.
+\end{itemize}
+
+\subsection{Gráficas de diagnóstico}
+El sistema genera automáticamente:
+\begin{itemize}
+  \item \texttt{salidas/angulos.png}: Evolución de $\phiroll$ y $\betapitch$.
+  \item \texttt{salidas/error\_incidencia.png}: Comparación directa del error $\theta$.
+\end{itemize}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{salidas/angulos.png}
+  \caption{Evolución temporal de los ángulos (Newton vs Gradiente).}
+  \label{fig:angulos}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{salidas/error_incidencia.png}
+  \caption{Error de incidencia: Newton logra mantener el error prácticamente en cero, mientras que el Gradiente puede presentar residuos.}
+  \label{fig:incidencia}
+\end{figure}
+
+\section{Conclusiones}
+\begin{itemize}
+  \item El método de \textbf{Newton-Raphson} resultó ser superior para esta aplicación cinemática, ofreciendo alta precisión y rapidez gracias a la buena estimación de la semilla analítica.
+  \item El método de \textbf{Gradiente con paso fijo} es funcional pero sensible a la elección del parámetro $\alpha$. Si el paso es muy grande oscila, y si es muy pequeño no alcanza a corregir el error en el número máximo de iteraciones permitido.
+  \item La visualización 3D y las gráficas de error validan que el modelo geométrico (matrices de rotación) es correcto y consistente con la posición solar calculada.
+\end{itemize}
+
+\appendix
+\section{Anexo: Estructura de archivos}
+\begin{lstlisting}[language=bash]
+MN_seguidor_solar/
+  main.py
+  requisitos.txt
+  README.md
+  src/
+    posicion_solar.py
+    cinematica.py
+    simulacion.py
+    graficas.py
+    animacion_3d.py
+    gui.py
+    metodos/
+      newton_sistema.py
+      gradiente_paso_fijo.py
+  test/
+    test_diagnostico.py
+\end{lstlisting}
+
+\end{document}
